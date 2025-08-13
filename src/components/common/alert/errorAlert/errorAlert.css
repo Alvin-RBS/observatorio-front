@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@layer components {
+  .error-alert {
+    @apply relative flex flex-col gap-2 bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-md;
+  }
+
+  .error-alert-close {
+    @apply absolute top-2 right-2 text-red-500 hover:text-red-700;
+  }
+
+  .error-alert-title {
+    @apply text-base font-semibold text-red-800;
+  }
+
+  .error-alert-message {
+    @apply text-sm text-red-700 leading-snug;
+  }
+
+  .error-alert-help {
+    @apply text-sm border-t border-red-200 pt-2 text-red-700;
+  }
+
+  .error-alert-help a {
+    @apply font-semibold underline hover:text-red-800;
+  }
+}
