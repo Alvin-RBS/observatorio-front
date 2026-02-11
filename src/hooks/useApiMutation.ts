@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { APIError } from "@/error/type";
+import { ErrorAPI } from "../utils/error/type";
 
 export function useApiMutation<TRequest, TResponse>(
   apiCall: (data: TRequest) => Promise<TResponse>
 ) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<APIError | null>(null);
+  const [error, setError] = useState<ErrorAPI | null>(null);
   const [data, setData] = useState<TResponse | null>(null);
 
   async function execute(payload: TRequest): Promise<TResponse | null> {
@@ -19,25 +19,27 @@ export function useApiMutation<TRequest, TResponse>(
       setData(result);
       return result;
     } catch (err: unknown) {
-      let apiError: APIError;
+      let errorAPI: ErrorAPI;
 
       if (err && typeof err === "object" && "message" in err) {
-        apiError = {
-          name: (err as Error).name || "APIError",
+        errorAPI = {
+          name: (err as Error).name || "ErrorAPI",
           message: (err as Error).message,
-          statusCode: (err as APIError).statusCode,
-          title: (err as APIError).title,
+          statusCode: (err as ErrorAPI).statusCode,
+          title: (err as ErrorAPI).title,
         };
       } else {
-        apiError = {
-          name: "APIError",
+        errorAPI = {
+          name: "ErrorAPI",
           message: String(err),
+          statusCode: 500,
+          title: "Erro desconhecido",
         };
       }
 
-      setError(apiError);
+      setError(errorAPI);
       setData(null);
-      throw apiError;
+      throw errorAPI;
     } finally {
       setLoading(false);
     }

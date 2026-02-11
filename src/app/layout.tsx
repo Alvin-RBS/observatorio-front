@@ -1,25 +1,27 @@
-"use client";
-
+import type { Metadata } from "next";
+import ThemeRegistry from "@/components/themes/ThemeRegistry";
+import { Toaster } from "react-hot-toast"; 
+import { FileProvider } from "@/context/FileContext";
 import "./globals.css";
-import { ThemeProvider, CssBaseline } from "@mui/material";
-import "@fontsource/roboto";
-import theme from "@/components/themes/theme";
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const metadata: Metadata = {
+  title: "Sistema de Monitoramento",
+  description: "Observatório de Violência",
+  icons: {
+    icon: "/logoSite.svg",
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <head>
-        <link rel="icon" href="/logoSite.svg" sizes="any" />
-      </head>
       <body className="antialiased">
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </ThemeProvider>
+        <ThemeRegistry>
+          <FileProvider> {/* <--- ENVOLVA AQUI */}
+            <Toaster position="top-right" />
+            {children}
+          </FileProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-import { ErrorApi } from "@/error/type";
+import { ErrorAPI } from '../utils/error/type';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -134,7 +134,7 @@ export async function apiFetch(
       }
     }
 
-    throw new ErrorApi(message, res.status, errorBody?.title || undefined);
+    throw new ErrorAPI(message, res.status, errorBody?.title || undefined);
   }
 
   return res.json().catch(() => ({}));

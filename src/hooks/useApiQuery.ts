@@ -1,4 +1,4 @@
-import { APIError } from "@/error/type";
+import { ErrorAPI } from "@/utils/error/type";
 import { useCallback, useEffect, useState, DependencyList } from "react";
 
 export function useApiQuery<TResponse>(
@@ -7,7 +7,7 @@ export function useApiQuery<TResponse>(
 ) {
   const [data, setData] = useState<TResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<APIError | null>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -16,7 +16,7 @@ export function useApiQuery<TResponse>(
       setData(result);
       setError(null); 
     } catch (err) {
-      setError(err as APIError);
+      setError(err as ErrorAPI);
       setData(null);
     } finally {
       setLoading(false);
