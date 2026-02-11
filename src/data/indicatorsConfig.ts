@@ -78,7 +78,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
     contextAttributes: [
       COMMON_ATTRS.data,
       COMMON_ATTRS.ano,
-      { id: 'tipo_arma', label: 'Tipo de Arma (Revólver/Pistola)', dataType: 'text' },
+      { id: 'tipo_arma', label: 'Tipo de Arma ', dataType: 'text' },
       { id: 'calibre', label: 'Calibre', dataType: 'text' }
     ]
   },
