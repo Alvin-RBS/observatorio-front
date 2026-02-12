@@ -40,7 +40,7 @@ export default function Sidebar({ open, onToggle }: SidebarProps) {
     { text: "Meus envios", icon: CloudUploadOutlinedIcon, path: "/meus-envios/historico" },
     { text: "Visualizar dados", icon: BarChartOutlinedIcon, path: "/visualizar-dados" },
     { text: "Relatórios", icon: DescriptionOutlinedIcon, path: "/relatorios" },
-    { text: "Usuários", icon: PersonOutlinedIcon, path: "/usuarios" },
+    { text: "Usuários", icon: PersonOutlinedIcon, path: "/usuarios/lista" },
   ];
 
   const openedMixin = (theme: Theme): CSSObject => ({

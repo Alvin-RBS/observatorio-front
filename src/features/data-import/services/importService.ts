@@ -38,8 +38,6 @@ export const uploadImportData = async (
   // 4. Anexa os metadados como JSON stringificado
   formData.append("metadata", JSON.stringify(metadata));
 
-  // 5. Envia para a API (Mock ou Real)
-
 const response = await apiClient.post("/api/spreadsheet/upload", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
