@@ -1,4 +1,4 @@
-import axios from "axios";
+import { apiClient } from "@/service/api";
 
 interface ImportPayload {
   indicatorId: string;
@@ -40,7 +40,7 @@ export const uploadImportData = async (
 
   // 5. Envia para a API (Mock ou Real)
 
-  const response = await axios.post("/api/import/upload", formData, {
+const response = await apiClient.post("/api/spreadsheet/upload", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
