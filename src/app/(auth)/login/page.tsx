@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation"; 
 import { 
   Box, 
   Paper, 
@@ -10,11 +11,13 @@ import {
   Checkbox, 
   FormControlLabel, 
   Container, 
-  Stack 
+  Stack,
+  Grid 
 } from "@mui/material";
-import { Grid } from "@mui/material"; 
 
 export default function LoginPage() {
+  const router = useRouter(); 
+
   return (
     <Box
       sx={{
@@ -22,7 +25,6 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-
         background: "linear-gradient(135deg, #fafcfe 0%, #a0b7d7 110%)",
         p: 2, 
       }}
@@ -30,6 +32,7 @@ export default function LoginPage() {
       <Container maxWidth="lg">
         <Grid container spacing={4} alignItems="center" justifyContent="center">
           
+         
           <Grid size={{ xs: 12, md: 5 }}>
             <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ width: 150, height: 'auto' }}>
@@ -38,7 +41,8 @@ export default function LoginPage() {
                    alt="Governo de Pernambuco" 
                    width={150} 
                    height={80} 
-                   style={{ objectFit: 'contain',  }} 
+                   style={{ objectFit: 'contain' }} 
+                   priority 
                  />
               </Box>
 
@@ -53,6 +57,7 @@ export default function LoginPage() {
             </Box>
           </Grid>
 
+          {/* LADO DIREITO: Formulário de Login */}
           <Grid size={{ xs: 12, md: 5, lg: 4 }}>
             <Paper
               elevation={4} 
@@ -62,7 +67,7 @@ export default function LoginPage() {
                 bgcolor: "white",
               }}
             >
-              <Box component="form">
+              <Box component="form" onSubmit={(e) => { e.preventDefault(); router.push('/home'); }}>
                 <Typography variant="h5" fontWeight="bold" gutterBottom>
                   Login
                 </Typography>
@@ -78,6 +83,7 @@ export default function LoginPage() {
                     type="email"
                     fullWidth
                     size="small" 
+                    required
                   />
                   
                   <TextField
@@ -86,6 +92,7 @@ export default function LoginPage() {
                     type="password"
                     fullWidth
                     size="small"
+                    required
                   />
 
                   <FormControlLabel
@@ -96,11 +103,13 @@ export default function LoginPage() {
                       </Typography>
                     }
                   />
+
                  <Stack spacing={2}>
                     <Button 
                       variant="outlined" 
                       fullWidth
                       color="primary" 
+                      onClick={() => router.push('/recuperar-senha')}
                       sx={{ 
                         textTransform: 'none',
                         fontWeight: 600,
@@ -111,15 +120,16 @@ export default function LoginPage() {
                     >
                       Esqueci minha senha
                     </Button>
+                    
                     <Button 
                       variant="contained" 
                       fullWidth
                       color="primary"
+                      type="submit" 
                       sx={{ 
                         textTransform: 'none',
                         fontWeight: 600,
                         py: 1.2,
-                 
                         '&:hover': {
                            bgcolor: '#002244' 
                         }
@@ -127,7 +137,7 @@ export default function LoginPage() {
                     >
                       Entrar
                     </Button>
-                    </Stack>
+                  </Stack>
                 </Stack>
               </Box>
             </Paper>
