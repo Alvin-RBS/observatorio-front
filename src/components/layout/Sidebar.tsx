@@ -36,7 +36,7 @@ export default function Sidebar({ open, onToggle }: SidebarProps) {
 
   const menuItems = [
     { text: "Home", icon: HomeOutlinedIcon, path: "/home" },
-    { text: "Histórico de envios", icon: AccessTimeOutlinedIcon, path: "/historico" },
+    { text: "Histórico de envios", icon: AccessTimeOutlinedIcon, path: "/historico-de-envios" },
     { text: "Meus envios", icon: CloudUploadOutlinedIcon, path: "/meus-envios/historico" },
     { text: "Visualizar dados", icon: BarChartOutlinedIcon, path: "/visualizar-dados" },
     { text: "Relatórios", icon: DescriptionOutlinedIcon, path: "/relatorios" },
