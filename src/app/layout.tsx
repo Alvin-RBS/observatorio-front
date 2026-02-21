@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import ThemeRegistry from "@/components/themes/ThemeRegistry";
 import { Toaster } from "react-hot-toast"; 
 import { FileProvider } from "@/context/FileContext";
+import { DashboardProvider } from "@/context/DashboardContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,9 +18,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <body className="antialiased">
         <ThemeRegistry>
-          <FileProvider> {/* <--- ENVOLVA AQUI */}
-            <Toaster position="top-right" />
-            {children}
+          <FileProvider>
+            <DashboardProvider>
+              <Toaster position="top-right" />
+              {children}
+            </DashboardProvider>
+
           </FileProvider>
         </ThemeRegistry>
       </body>

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { ChartConfig } from "@/context/DashboardContext";
 
 // Pega a URL do Gateway (via Rewrite do Next.js, então usamos caminho relativo)
 // Se estiver rodando no servidor (SSR), precisa da URL completa, mas geralmente Axios roda no cliente aqui.
@@ -82,3 +83,43 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// --- SIMULADOR DE API DO BACKEND ---
+// Quando o Spring Boot estiver pronto, você vai deletar essa função.
+export const fetchFilteredChartsMock = async (
+    indicatorId: string, 
+    filters: Record<string, string>, 
+    baseCharts: ChartConfig[]
+): Promise<ChartConfig[]> => {
+    return new Promise((resolve) => {
+        // Simula o delay de internet e banco de dados (600ms)
+        setTimeout(() => {
+            // Verifica se tem filtros ativos (ignorando as datas padrão para o mock não ficar sempre vazio)
+            const hasActiveFilters = Object.entries(filters).some(
+                ([key, value]) => value !== "" && key !== "inicio" && key !== "fim"
+            );
+
+            if (!hasActiveFilters) {
+                resolve(baseCharts); // Retorna os dados cheios do banco
+                return;
+            }
+
+            // MOCK: Reduz os valores apenas para provar que a "API" filtrou os dados
+            const filteredData = baseCharts.map(chart => {
+                const newSeries = JSON.parse(JSON.stringify(chart.series));
+                if (chart.type === 'pie' || chart.type === 'donut') {
+                    newSeries.forEach((val: number, i: number) => { newSeries[i] = Math.max(1, Math.floor(val * 0.4)); });
+                } else if (chart.type === 'treemap' || chart.type === 'heatmap') {
+                     newSeries.forEach((s: any) => { s.data.forEach((d: any) => { d.y = Math.max(1, Math.floor(d.y * 0.4)); }); });
+                } else {
+                    newSeries.forEach((s: any) => {
+                        if (s.data) s.data = s.data.map((v: number) => Math.max(1, Math.floor(v * 0.4)));
+                    });
+                }
+                return { ...chart, series: newSeries };
+            });
+
+            resolve(filteredData);
+        }, 600);
+    });
+};

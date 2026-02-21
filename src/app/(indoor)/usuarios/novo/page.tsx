@@ -17,6 +17,7 @@ import {
   Select,
   SelectChangeEvent,
   InputAdornment,
+  FormHelperText // Import necessário para erro no Select
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -39,11 +40,12 @@ export default function AdicionarUsuarioPage() {
     telefone: "",
     secretaria: "",
     tipoUsuario: "",
-    status: "Ativa",
+    status: "Ativa", // Valor padrão, então dificilmente estará vazio
     dataCriacao: new Date().toISOString().split('T')[0]
   });
 
-  const [errors, setErrors] = useState<{ cpf?: string }>({});
+  // Estado de erros agora aceita qualquer chave string
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const labelProps = {
@@ -60,7 +62,6 @@ export default function AdicionarUsuarioPage() {
 
     if (name === "cpf") {
       value = masks.cpf(e);
-      if (errors.cpf) setErrors((prev) => ({ ...prev, cpf: undefined }));
     }
     
     if (name === "telefone") {
@@ -68,11 +69,21 @@ export default function AdicionarUsuarioPage() {
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Limpa o erro específico do campo ao digitar
+    if (errors[name]) {
+        setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name as string]: value }));
+
+    // Limpa o erro do select ao selecionar
+    if (errors[name]) {
+        setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -83,19 +94,36 @@ export default function AdicionarUsuarioPage() {
   };
 
   const handleSubmit = () => {
-    const newErrors: { cpf?: string } = {};
+    const newErrors: { [key: string]: string } = {};
 
-    if (!isValidCPF(formData.cpf)) {
+    // 1. Validação de Campos Vazios (Obrigatoriedade)
+    // Lista de campos que não podem ser vazios
+    const requiredFields = ["nome", "email", "cpf", "telefone", "secretaria", "tipoUsuario", "dataCriacao"];
+    
+    requiredFields.forEach((field) => {
+        if (!formData[field as keyof typeof formData]) {
+            newErrors[field] = "Campo obrigatório.";
+        }
+    });
+
+    // 2. Validação Específica de CPF (só valida se tiver algo digitado)
+    if (formData.cpf && !isValidCPF(formData.cpf)) {
       newErrors.cpf = "CPF inválido.";
     }
 
+    // 3. Validação básica de E-mail
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = "E-mail inválido.";
+    }
+
+    // Se houver erros, atualiza o estado e não envia
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
     console.log("Dados válidos para enviar:", formData);
-    router.push("/indoor/usuarios");
+    router.push("/usuarios/lista");
   };
 
   return (
@@ -140,7 +168,9 @@ export default function AdicionarUsuarioPage() {
                     onChange={handleChange}
                     fullWidth
                     variant="outlined"
-                    InputLabelProps={labelProps} 
+                    InputLabelProps={labelProps}
+                    error={!!errors.nome} // Mostra vermelho se houver erro
+                    helperText={errors.nome} // Mostra a mensagem
                 />
 
                 <TextField
@@ -152,10 +182,12 @@ export default function AdicionarUsuarioPage() {
                     onChange={handleChange}
                     fullWidth
                     variant="outlined"
-                    InputLabelProps={labelProps} 
+                    InputLabelProps={labelProps}
+                    error={!!errors.email}
+                    helperText={errors.email}
                 />
 
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!errors.secretaria}>
                     <InputLabel shrink sx={{ bgcolor: "white", px: 1 }} id="secretaria-label">
                         Secretaria
                     </InputLabel>
@@ -169,6 +201,8 @@ export default function AdicionarUsuarioPage() {
                         <MenuItem value="" disabled>Selecione</MenuItem>
                         {SECRETARIAS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                     </Select>
+                    {/* Mensagem de erro para Select */}
+                    {errors.secretaria && <FormHelperText>{errors.secretaria}</FormHelperText>}
                 </FormControl>
 
                 <FormControl fullWidth>
@@ -214,9 +248,11 @@ export default function AdicionarUsuarioPage() {
                     placeholder="(81) 98123-4432"
                     InputLabelProps={labelProps} 
                     inputProps={{ maxLength: 15 }}
+                    error={!!errors.telefone}
+                    helperText={errors.telefone}
                 />
 
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!errors.tipoUsuario}>
                     <InputLabel shrink sx={{ bgcolor: "white", px: 1 }} id="tipo-label">
                         Tipo de usuário
                     </InputLabel>
@@ -230,6 +266,7 @@ export default function AdicionarUsuarioPage() {
                         <MenuItem value="" disabled>Selecione</MenuItem>
                         {TIPOS_USUARIO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
+                    {errors.tipoUsuario && <FormHelperText>{errors.tipoUsuario}</FormHelperText>}
                 </FormControl>
 
                 <TextField
@@ -240,7 +277,9 @@ export default function AdicionarUsuarioPage() {
                     onChange={handleChange}
                     fullWidth
                     variant="outlined"
-                    InputLabelProps={labelProps} 
+                    InputLabelProps={labelProps}
+                    error={!!errors.dataCriacao}
+                    helperText={errors.dataCriacao}
                     InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">

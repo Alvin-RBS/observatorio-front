@@ -31,7 +31,7 @@ const MOCK_USER_TO_EDIT = {
   id: 1,
   nome: "Alberto Santos Alves",
   cpf: "123.456.789.00",
-  email: "albertoalves@gmail.com",
+  email: "albertosantos@sjdh.com",
   telefone: "(81) 91234-5678",
   secretaria: "SJDH",
   tipoUsuario: "Operador",

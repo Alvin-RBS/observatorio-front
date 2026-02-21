@@ -29,7 +29,7 @@ const USER_DETAILS = {
   nome: "Alberto Santos Alves",
   role: "Operador",
   dataCriacao: "02/02/2026",
-  email: "albertoalves@gmail.com",
+  email: "alberto.santos@sjdh.com",
   cpf: "123.456.789.00",
   telefone: "(81) 91234-5678",
   secretaria: "SJDH",

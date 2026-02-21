@@ -44,7 +44,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
       COMMON_ATTRS.ano,
       { id: 'sexo', label: 'Sexo', dataType: 'text' },
       { id: 'idade', label: 'Idade', dataType: 'number' },
-      { id: 'natureza_juridica', label: 'Natureza Jurídica (Homicídio/Latrocínio)', dataType: 'text' }
+      { id: 'natureza_juridica', label: 'Natureza Jurídica', dataType: 'text' }
     ]
   },
 
@@ -68,7 +68,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
 
   // EXEMPLO 3: Apreensão de Armas (Número Absoluto)
   {
-    id: "11",
+    id: "3",
     label: "Apreensão de Armas de Fogo",
     type: 'ABSOLUTE',
     calculationAttributes: [
@@ -85,7 +85,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
   
   // EXEMPLO 4: Roubo a Transeunte (Absoluto)
   {
-    id: "5",
+    id: "4",
     label: "Roubo a Transeunte",
     type: 'ABSOLUTE',
     calculationAttributes: [
@@ -101,7 +101,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
   },
 
    {
-    id: "6",
+    id: "5",
     label: "Homicídios de 18 a 29 anos",
     type: 'ABSOLUTE',
     calculationAttributes: [

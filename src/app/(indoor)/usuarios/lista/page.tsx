@@ -21,24 +21,80 @@ import SearchIcon from "@mui/icons-material/Search";
 import { useRouter } from "next/navigation";
 
 type UserStatus = "Ativa" | "Desativado" | "Pendente";
+
 interface UserItem {
   id: number;
-  email: string;
+  name: string;      // Adicionado campo Nome
+  email: string;     // Mantido no dado, mas não exibido na coluna
   type: string;
   secretaria: string;
   status: UserStatus;
   createdAt: string;
-  inactivatedAt: string; 
+  inactivatedAt: string;
 }
 
-// --- DADOS MOCKADOS ---
+// --- DADOS MOCKADOS DIVERSIFICADOS ---
 const MOCK_USERS: UserItem[] = [
-  { id: 1, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Ativa", createdAt: "02/02/2026", inactivatedAt: "-" },
-  { id: 2, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Desativado", createdAt: "02/02/2026", inactivatedAt: "-" },
-  { id: 3, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Pendente", createdAt: "02/02/2026", inactivatedAt: "-" },
-  { id: 4, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Ativa", createdAt: "02/02/2026", inactivatedAt: "-" },
-  { id: 5, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Ativa", createdAt: "02/02/2026", inactivatedAt: "-" },
-  { id: 6, email: "anapaulac123@gmail.com", type: "Operador", secretaria: "SJDH", status: "Ativa", createdAt: "02/02/2026", inactivatedAt: "-" },
+  { 
+    id: 1, 
+    name: "Alberto Santos Alves", 
+    email: "alberto.santos@sjdh.com",
+    type: "Operador", 
+    secretaria: "SJDH", 
+    status: "Ativa", 
+    createdAt: "02/02/2026", 
+    inactivatedAt: "-" 
+  },
+  { 
+    id: 2, 
+    name: "Carlos Eduardo Silva", 
+    email: "carlos.silva@exemplo.com", 
+    type: "Gestor", 
+    secretaria: "SDS", 
+    status: "Desativado", 
+    createdAt: "15/01/2025", 
+    inactivatedAt: "10/02/2026" 
+  },
+  { 
+    id: 3, 
+    name: "Mariana Souza", 
+    email: "mariana.souza@exemplo.com", 
+    type: "Operador", 
+    secretaria: "Saúde", 
+    status: "Pendente", 
+    createdAt: "12/02/2026", 
+    inactivatedAt: "-" 
+  },
+  { 
+    id: 4, 
+    name: "Roberto Almeida", 
+    email: "roberto.almeida@exemplo.com", 
+    type: "Admin", 
+    secretaria: "Educação", 
+    status: "Ativa", 
+    createdAt: "20/11/2025", 
+    inactivatedAt: "-" 
+  },
+  { 
+    id: 5, 
+    name: "Fernanda Lima", 
+    email: "fernanda.lima@exemplo.com", 
+    type: "Operador", 
+    secretaria: "SJDH", 
+    status: "Ativa", 
+    createdAt: "05/01/2026", 
+    inactivatedAt: "-" 
+  },
+  { 
+    id: 6, 
+    name: "João Pedro Santos", 
+    email: "joao.pedro@exemplo.com", 
+    type: "Gestor", 
+    secretaria: "SDS", 
+    status: "Pendente", 
+    createdAt: "13/02/2026", 
+    inactivatedAt: "-" 
+  },
 ];
 
 export default function ListaUsuariosPage() {
@@ -48,7 +104,7 @@ export default function ListaUsuariosPage() {
   const getStatusConfig = (status: UserStatus) => {
     switch (status) {
       case "Ativa":
-        return { label: "Ativa", color: "#55E398", textColor: "#3F3F3F" }; 
+        return { label: "Ativo", color: "#55E398", textColor: "#3F3F3F" }; 
       case "Desativado":
         return { label: "Desativado", color: "#F1B35C", textColor: "#3F3F3F" }; 
       case "Pendente":
@@ -58,8 +114,9 @@ export default function ListaUsuariosPage() {
     }
   };
 
+  // Filtragem agora busca pelo NOME
   const filteredData = MOCK_USERS.filter((user) =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    user.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleRowClick = (id: number) => {
@@ -78,12 +135,12 @@ export default function ListaUsuariosPage() {
             variant="contained" 
             onClick={() => router.push("/usuarios/novo")}
             sx={{ 
-                bgcolor: "primary", 
+                bgcolor: "primary.main", // Usando token do tema se disponível, ou cor fixa
                 textTransform: "none", 
                 fontWeight: "bold",
                 px: 3,
                 py: 1,
-                "&:hover": { bgcolor: "#002255" }
+                "&:hover": { bgcolor: "primary.dark" }
             }}
         >
             Adicionar usuário
@@ -117,15 +174,14 @@ export default function ListaUsuariosPage() {
         </Box>
 
         <TableContainer>
-          <Table sx={{ minWidth: 800 }} aria-label="tabela de usuários">
+          <Table sx={{ minWidth: 650 }} aria-label="tabela de usuários">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>E-mail</TableCell>
+                {/* Cabeçalhos atualizados: Nome, Tipo, Secretaria, Status */}
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Nome</TableCell>
                 <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Tipo</TableCell>
                 <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Secretaria</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Status da conta do usuário</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Data da criação da conta</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Data de inativação</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -137,24 +193,29 @@ export default function ListaUsuariosPage() {
                     <TableRow
                       key={row.id}
                       onClick={() => handleRowClick(row.id)}
+                      hover // Adiciona efeito visual ao passar o mouse
                       sx={{ 
                         "&:last-child td, &:last-child th": { border: 0 },
                         cursor: "pointer", 
                         transition: "background-color 0.2s"
                       }}
                     >
-                      <TableCell component="th" scope="row" sx={{ color: "#4B5563" }}>
-                        {row.email}
+                      {/* Coluna Nome */}
+                      <TableCell component="th" scope="row" sx={{ color: "#4B5563", fontWeight: 500 }}>
+                        {row.name}
                       </TableCell>
 
+                      {/* Coluna Tipo */}
                       <TableCell sx={{ color: "#4B5563" }}>
                         {row.type}
                       </TableCell>
 
+                      {/* Coluna Secretaria */}
                       <TableCell sx={{ color: "#4B5563" }}>
                         {row.secretaria}
                       </TableCell>
                       
+                      {/* Coluna Status */}
                       <TableCell>
                         <Chip 
                             label={statusConfig.label} 
@@ -163,24 +224,17 @@ export default function ListaUsuariosPage() {
                                 bgcolor: statusConfig.color, 
                                 color: statusConfig.textColor,
                                 minWidth: 90,
-                                fontSize: "0.85rem"
+                                fontSize: "0.85rem",
+                               
                             }} 
                         />
-                      </TableCell>
-                      
-                      <TableCell sx={{ color: "#4B5563" }}>
-                        {row.createdAt}
-                      </TableCell>
-                      
-                      <TableCell sx={{ color: "#4B5563" }}>
-                        {row.inactivatedAt}
                       </TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
                     <Typography color="text.secondary">Nenhum usuário encontrado.</Typography>
                   </TableCell>
                 </TableRow>
