@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -19,107 +19,25 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import { useRouter } from "next/navigation";
-
-type UserStatus = "Ativa" | "Desativado" | "Pendente";
-
-interface UserItem {
-  id: number;
-  name: string;      // Adicionado campo Nome
-  email: string;     // Mantido no dado, mas não exibido na coluna
-  type: string;
-  secretaria: string;
-  status: UserStatus;
-  createdAt: string;
-  inactivatedAt: string;
-}
-
-// --- DADOS MOCKADOS DIVERSIFICADOS ---
-const MOCK_USERS: UserItem[] = [
-  { 
-    id: 1, 
-    name: "Alberto Santos Alves", 
-    email: "alberto.santos@sjdh.com",
-    type: "Operador", 
-    secretaria: "SJDH", 
-    status: "Ativa", 
-    createdAt: "02/02/2026", 
-    inactivatedAt: "-" 
-  },
-  { 
-    id: 2, 
-    name: "Carlos Eduardo Silva", 
-    email: "carlos.silva@exemplo.com", 
-    type: "Gestor", 
-    secretaria: "SDS", 
-    status: "Desativado", 
-    createdAt: "15/01/2025", 
-    inactivatedAt: "10/02/2026" 
-  },
-  { 
-    id: 3, 
-    name: "Mariana Souza", 
-    email: "mariana.souza@exemplo.com", 
-    type: "Operador", 
-    secretaria: "Saúde", 
-    status: "Pendente", 
-    createdAt: "12/02/2026", 
-    inactivatedAt: "-" 
-  },
-  { 
-    id: 4, 
-    name: "Roberto Almeida", 
-    email: "roberto.almeida@exemplo.com", 
-    type: "Admin", 
-    secretaria: "Educação", 
-    status: "Ativa", 
-    createdAt: "20/11/2025", 
-    inactivatedAt: "-" 
-  },
-  { 
-    id: 5, 
-    name: "Fernanda Lima", 
-    email: "fernanda.lima@exemplo.com", 
-    type: "Operador", 
-    secretaria: "SJDH", 
-    status: "Ativa", 
-    createdAt: "05/01/2026", 
-    inactivatedAt: "-" 
-  },
-  { 
-    id: 6, 
-    name: "João Pedro Santos", 
-    email: "joao.pedro@exemplo.com", 
-    type: "Gestor", 
-    secretaria: "SDS", 
-    status: "Pendente", 
-    createdAt: "13/02/2026", 
-    inactivatedAt: "-" 
-  },
-];
+import { MOCK_USERS, getStatusConfig, UserItem } from "../[id]/mock"; 
 
 export default function ListaUsuariosPage() {
   const router = useRouter(); 
   const [searchTerm, setSearchTerm] = useState("");
+  const [usersList, setUsersList] = useState<UserItem[]>([]);
 
-  const getStatusConfig = (status: UserStatus) => {
-    switch (status) {
-      case "Ativa":
-        return { label: "Ativo", color: "#55E398", textColor: "#3F3F3F" }; 
-      case "Desativado":
-        return { label: "Desativado", color: "#F1B35C", textColor: "#3F3F3F" }; 
-      case "Pendente":
-        return { label: "Pendente", color: "#efec3e", textColor: "#3F3F3F" }; 
-      default:
-        return { label: status, color: "#E0E0E0", textColor: "#000" };
-    }
-  };
+  // Esse useEffect garante que a lista pegue os dados MOCK_USERS mais recentes da memória
+  // toda vez que a página for montada, driblando o cache de navegação do Next.js
+  useEffect(() => {
+    setUsersList([...MOCK_USERS]);
+  }, []);
 
-  // Filtragem agora busca pelo NOME
-  const filteredData = MOCK_USERS.filter((user) =>
+  const filteredData = usersList.filter((user) =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleRowClick = (id: number) => {
+    // Certifique-se de que a rota principal de visualização é /usuarios/[id]
     router.push(`/usuarios/${id}`);
   };
 
@@ -133,9 +51,9 @@ export default function ListaUsuariosPage() {
 
         <Button 
             variant="contained" 
-            onClick={() => router.push("/usuarios/novo")}
+            onClick={() => router.push("/usuarios/novo")} // Rota para criação de usuário
             sx={{ 
-                bgcolor: "primary.main", // Usando token do tema se disponível, ou cor fixa
+                bgcolor: "primary.main",
                 textTransform: "none", 
                 fontWeight: "bold",
                 px: 3,
@@ -166,8 +84,13 @@ export default function ListaUsuariosPage() {
             sx={{ 
                 maxWidth: "100%",
                 "& .MuiOutlinedInput-root": {
-                    borderRadius: 1,
-                    backgroundColor: "#fff"
+                    borderRadius: 2,
+                    backgroundColor: "#fff",
+                    transition: "all 0.3s ease", 
+                    "&.Mui-focused": {
+                        boxShadow: "0px 4px 14px rgba(0, 0, 0, 0.08)", 
+                        transform: "translateY(-1px)",
+                    }
                 }
             }}
           />
@@ -177,7 +100,6 @@ export default function ListaUsuariosPage() {
           <Table sx={{ minWidth: 650 }} aria-label="tabela de usuários">
             <TableHead>
               <TableRow>
-                {/* Cabeçalhos atualizados: Nome, Tipo, Secretaria, Status */}
                 <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Nome</TableCell>
                 <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Tipo</TableCell>
                 <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Secretaria</TableCell>
@@ -193,29 +115,18 @@ export default function ListaUsuariosPage() {
                     <TableRow
                       key={row.id}
                       onClick={() => handleRowClick(row.id)}
-                      hover // Adiciona efeito visual ao passar o mouse
+                      hover
                       sx={{ 
                         "&:last-child td, &:last-child th": { border: 0 },
                         cursor: "pointer", 
                         transition: "background-color 0.2s"
                       }}
                     >
-                      {/* Coluna Nome */}
                       <TableCell component="th" scope="row" sx={{ color: "#4B5563", fontWeight: 500 }}>
                         {row.name}
                       </TableCell>
-
-                      {/* Coluna Tipo */}
-                      <TableCell sx={{ color: "#4B5563" }}>
-                        {row.type}
-                      </TableCell>
-
-                      {/* Coluna Secretaria */}
-                      <TableCell sx={{ color: "#4B5563" }}>
-                        {row.secretaria}
-                      </TableCell>
-                      
-                      {/* Coluna Status */}
+                      <TableCell sx={{ color: "#4B5563" }}>{row.type}</TableCell>
+                      <TableCell sx={{ color: "#4B5563" }}>{row.secretaria}</TableCell>
                       <TableCell>
                         <Chip 
                             label={statusConfig.label} 
@@ -225,7 +136,7 @@ export default function ListaUsuariosPage() {
                                 color: statusConfig.textColor,
                                 minWidth: 90,
                                 fontSize: "0.85rem",
-                               
+                                fontWeight: "bold"
                             }} 
                         />
                       </TableCell>
