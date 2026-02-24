@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Box, Paper, Stepper, Step, StepLabel, Button, Typography, Container, CircularProgress, Stack } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { uploadImportData } from "@/features/data-import/services/importService";
-import Step1Upload from "@/features/data-import/components/Step1Upload";
-import Step2Indicator from "@/features/data-import/components/Step2Indicator";
-import Step3ConfirmTitle from "@/features/data-import/components/Step3ConfirmTitle";
-import Step4MapColumns from "@/features/data-import/components/Step4MapColumns"; 
-import Step5Review from "@/features/data-import/components/Step5Review";
+import { uploadImportData, validateImportMappings } from "@/features/data-import/services/importService";
+import { getIndicatorById, IndicatorConfig } from "@/features/data-import/services/indicatorService";
+import Step0Upload from "@/features/data-import/components/Step0Upload";
+import Step1Indicator from "@/features/data-import/components/Step1Indicator";
+import Step2ConfirmTitle from "@/features/data-import/components/Step2ConfirmTitle";
+import Step3MapColumns from "@/features/data-import/components/Step3MapColumns"; 
+import Step4Review from "@/features/data-import/components/Step4Review";
 import { useFile } from "@/context/FileContext"; 
-import { getIndicatorConfig } from "@/data/indicatorsConfig"; 
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { readExcelPreview } from "@/utils/excelReader";
 
@@ -26,19 +26,42 @@ const steps = [
 export default function AdicionarDadosPage() {
   const router = useRouter();
   const [activeStep, setActiveStep] = useState(0);
-  const { uploadedFile, setUploadedFile: setContextFile } = useFile();
+  const stepContainerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (stepContainerRef.current) {
+      stepContainerRef.current.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "start" 
+      });
+    }
+  }, [activeStep]); 
+
+  const { uploadedFile, setUploadedFile: setContextFile } = useFile();
   const [file, setFile] = useState<File | null>(null);
   const [indicatorId, setIndicatorId] = useState("");
-  
+  const [indicatorConfig, setIndicatorConfig] = useState<IndicatorConfig | null>(null);
   const [fileColumns, setFileColumns] = useState<string[]>([]);
-  
   const [previewMatrix, setPreviewMatrix] = useState<any[][]>([]);
   const [totalRows, setTotalRows] = useState(0);
-  
   const [columnMappings, setColumnMappings] = useState<any>({}); 
-  
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (!indicatorId) return;
+    
+    const fetchConfig = async () => {
+      try {
+        const config = await getIndicatorById(indicatorId);
+        setIndicatorConfig(config);
+      } catch (error) {
+        console.error("Erro ao buscar a configuração do indicador", error);
+        toast.error("Erro de comunicação com o servidor.");
+      }
+    };
+    
+    fetchConfig();
+  }, [indicatorId]);
 
   useEffect(() => {
     if (uploadedFile) {
@@ -85,6 +108,32 @@ export default function AdicionarDadosPage() {
   };
   
   const handleNext = async () => {
+
+    if (activeStep === 3) {
+      try {
+        setIsUploading(true); // Usamos o mesmo state para girar o loading no botão
+
+        console.log("🕵️ Mapeamento enviado para o Java:", columnMappings);
+        
+        const result = await validateImportMappings(indicatorId, columnMappings, fileColumns);
+        
+        if (!result.valid) {
+          toast.error("Atenção: O mapeamento das colunas é inválido ou incompatível.", {
+            style: { background: '#FFA000', color: '#fff' } // Laranja de alerta
+          });
+          setIsUploading(false);
+          return; // Para a execução aqui, impedindo de ir pro Step 4
+        }
+      } catch (error) {
+        console.error("Erro na validação do servidor:", error);
+        toast.error("Falha ao validar colunas com o servidor.");
+        setIsUploading(false);
+        return; // Para a execução em caso de erro de rede
+      } finally {
+        setIsUploading(false);
+      }
+    }
+    
     if (activeStep < 4) {
       setActiveStep((prev) => prev + 1);
       return;
@@ -119,21 +168,25 @@ export default function AdicionarDadosPage() {
     }
   };
 
-  const isStepValid = () => {
+const isStepValid = () => {
     if (activeStep === 0) return !!file;
-    if (activeStep === 1) return !!indicatorId;
+    if (activeStep === 1) return !!indicatorId && !!indicatorConfig; // Só avança se o Java já tiver respondido
     
     if (activeStep === 3) {
-      const config = getIndicatorConfig(indicatorId);
-      if (!config) return false;
+      if (!indicatorConfig) return false;
 
-      const requiredIds = [
-          ...config.calculationAttributes.map(a => a.id),
-          ...config.contextAttributes.map(a => a.id)
+      // Junta as variáveis de cálculo e de contexto num array só
+      const allAttributes = [
+          ...indicatorConfig.calculationAttributes,
+          ...indicatorConfig.contextAttributes
       ];
 
-      const isValid = requiredIds.every(id => {
-          const mapping = columnMappings[id];
+      // Filtra APENAS as que o Java marcou como "required: true"
+      const requiredAttributes = allAttributes.filter(attr => attr.required === true);
+
+      // Verifica se todas as obrigatórias foram mapeadas
+      const isValid = requiredAttributes.every(attr => {
+          const mapping = columnMappings[attr.id];
           return mapping && mapping.excelColumn && mapping.excelColumn !== "";
       });
 
@@ -160,14 +213,14 @@ export default function AdicionarDadosPage() {
         </Stepper>
       </Box>
 
-      <Paper elevation={0} sx={{ p: 4, minHeight: "50vh", border: "1px solid #E0E0E0" }}>
+      <Paper ref={stepContainerRef} elevation={0} sx={{ p: 4, minHeight: "50vh", border: "1px solid #E0E0E0" }}>
         
-        {activeStep === 0 && <Step1Upload file={file} setFile={handleFileChange} />}
+        {activeStep === 0 && <Step0Upload file={file} setFile={handleFileChange} />}
 
-        {activeStep === 1 && <Step2Indicator selectedIndicator={indicatorId} setIndicator={setIndicatorId} />}
+        {activeStep === 1 && <Step1Indicator selectedIndicator={indicatorId} setIndicator={setIndicatorId} />}
 
         {activeStep === 2 && (
-          <Step3ConfirmTitle 
+          <Step2ConfirmTitle 
             previewMatrix={previewMatrix} 
             totalRows={totalRows}
             onConfirm={handleConfirmHeaders} 
@@ -175,7 +228,7 @@ export default function AdicionarDadosPage() {
         )}
 
         {activeStep === 3 && (
-          <Step4MapColumns 
+          <Step3MapColumns 
             mappings={columnMappings} 
             setMappings={setColumnMappings} 
             fileColumns={fileColumns} 
@@ -183,7 +236,7 @@ export default function AdicionarDadosPage() {
           />
         )}
 
-        {activeStep === 4 && <Step5Review 
+        {activeStep === 4 && <Step4Review 
              file={file}
              indicatorId={indicatorId}
              mappings={columnMappings}

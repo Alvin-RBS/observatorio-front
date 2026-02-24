@@ -1,15 +1,15 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
 
-const nextConfig: NextConfig = {
-  /* async rewrites() {
+const nextConfig = {
+  async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: `${process.env.API_GATEWAY_URL}/:path*`,
+        source: '/api-backend/:path*',
+        // A Vercel vai interceptar e mandar para o HTTP inseguro na AWS, por debaixo dos panos
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`, 
       },
-    ];
+    ]
   },
-  */
 };
 
-export default nextConfig;
+export default nextConfig; // Se for .js, use: module.exports = nextConfig

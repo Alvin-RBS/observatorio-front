@@ -426,15 +426,14 @@ export function generateMockDataFromConfig(draft: ChartDraft, indicatorId: strin
                         radius: 4,         
                         enableShades: false, 
                         colorScale: {
-                            ranges: [
-                                // Cores levemente mais pigmentadas para não sumirem contra o branco
-                                { from: 0, to: 20, color: '#93C5FD', name: 'Muito Baixo' }, 
-                                { from: 21, to: 40, color: '#3B82F6', name: 'Baixo' },      
-                                { from: 41, to: 60, color: '#1D4ED8', name: 'Médio' },      
-                                { from: 61, to: 80, color: '#1E3A8A', name: 'Alto' },       
-                                { from: 81, to: 100, color: '#122456', name: 'Crítico' }   
-                            ]
-                        }
+                                    ranges: [
+                                        { from: 0, to: 20, color: '#93C5FD', name: 'Muito Baixo' }, 
+                                        { from: 20.001, to: 40, color: '#3B82F6', name: 'Baixo' },      
+                                        { from: 40.001, to: 60, color: '#1D4ED8', name: 'Médio' },      
+                                        { from: 60.001, to: 80, color: '#1E3A8A', name: 'Alto' },       
+                                        { from: 80.001, to: 10000, color: '#122456', name: 'Crítico' } 
+                                    ]
+                                }
                     }
                 },
                 dataLabels: { enabled: false }, 

@@ -2,7 +2,7 @@
 
 import { 
   Box, Typography, Table, TableBody, TableCell, TableContainer, 
-  TableHead, TableRow, Paper, Alert, Grid, Stack, Divider, Chip 
+  TableHead, TableRow, Paper, Alert, Grid, Stack, Divider, Chip, CircularProgress 
 } from "@mui/material";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import BarChartIcon from "@mui/icons-material/BarChart";
@@ -10,15 +10,15 @@ import SdStorageIcon from "@mui/icons-material/SdStorage";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
-import { useMemo } from "react";
-import { getIndicatorConfig } from "@/data/indicatorsConfig";
+import { useMemo, useEffect, useState } from "react";
+import { getIndicatorById, IndicatorConfig } from "@/features/data-import/services/indicatorService";
 
 interface Step5ReviewProps {
   file: File | null;
   indicatorId: string;
   mappings: Record<string, { excelColumn: string; status: string }>;
-  fileColumns: string[]; // Colunas originais do Excel
-  previewMatrix: any[][]; // Preview do Excel
+  fileColumns: string[]; 
+  previewMatrix: any[][]; 
 }
 
 export default function Step5Review({ 
@@ -29,12 +29,26 @@ export default function Step5Review({
   previewMatrix 
 }: Step5ReviewProps) {
 
-  // 1. Carrega a configuração completa do indicador
-  const indicatorConfig = useMemo(() => {
-    return getIndicatorConfig(indicatorId);
+  // 1. Estado para guardar a configuração que vem da AWS
+  const [indicatorConfig, setIndicatorConfig] = useState<IndicatorConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 2. Busca a configuração do Java assim que a tela abre
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const config = await getIndicatorById(indicatorId);
+        setIndicatorConfig(config);
+      } catch (error) {
+        console.error("Erro ao carregar a configuração do indicador no Step 5:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchConfig();
   }, [indicatorId]);
 
-  // 2. Lista unificada de todas as colunas que devem aparecer na tabela final
+  // 3. Lista unificada de colunas a exibir
   const columnsToShow = useMemo(() => {
     if (!indicatorConfig) return [];
     return [
@@ -43,7 +57,7 @@ export default function Step5Review({
     ];
   }, [indicatorConfig]);
 
-  // 3. Formata o tamanho do arquivo
+  // 4. Formata o tamanho do arquivo
   const fileSize = useMemo(() => {
     if (!file) return "0 KB";
     const k = 1024;
@@ -52,7 +66,7 @@ export default function Step5Review({
     return parseFloat((file.size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }, [file]);
 
-  // 4. Transforma a matriz bruta do Excel em um formato que a tabela pode consumir, usando o mapeamento para pegar as colunas certas
+  // 5. Transforma a matriz bruta do Excel
   const transformedData = useMemo(() => {
     if (!previewMatrix || previewMatrix.length <= 1 || !indicatorConfig) return [];
 
@@ -66,7 +80,6 @@ export default function Step5Review({
         
         if (mappedExcelColumn) {
             const columnIndex = fileColumns.indexOf(mappedExcelColumn);
-            
             if (columnIndex !== -1) {
                 newRow[attr.id] = row[columnIndex];
             }
@@ -76,7 +89,20 @@ export default function Step5Review({
     });
   }, [previewMatrix, fileColumns, mappings, indicatorConfig, columnsToShow]);
 
-  if (!indicatorConfig) return null;
+  // PROTEÇÃO CONTRA A TELA BRANCA: Mostra loading enquanto o Java não responde
+  if (loading) {
+      return (
+          <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={10}>
+              <CircularProgress size={48} sx={{ mb: 2 }} />
+              <Typography color="text.secondary">Montando prévia dos dados...</Typography>
+          </Box>
+      );
+  }
+
+  // Se der erro na rede e não carregar, avisa amigavelmente
+  if (!indicatorConfig) {
+      return <Alert severity="error">Erro ao carregar os detalhes do indicador para revisão.</Alert>;
+  }
 
   return (
     <Box>
@@ -151,16 +177,16 @@ export default function Step5Review({
             severity="success" 
             sx={{ bgcolor: "#F0FDF4", color: "#1B5E20" }}
           >
-            Mapeamento concluído. O sistema identificou <strong>{columnsToShow.length} colunas</strong> obrigatórias.
+            Mapeamento concluído. O sistema identificou <strong>{columnsToShow.length} colunas</strong> do indicador.
           </Alert>
 
-          {indicatorConfig.type === 'RATE' && (
+         {/*{indicatorConfig.type === 'RATE' && (
              <Alert severity="info" icon={<InfoOutlinedIcon />}>
                 O indicador será salvo como <strong>TAXA</strong>. O cálculo será feito automaticamente multiplicando:
                 <br/>
                 <code>( {mappings['total_vitimas']?.excelColumn || mappings['total_feminicidios']?.excelColumn || "Total"} / População do Município ) * {indicatorConfig.multiplier?.toLocaleString()}</code>
              </Alert>
-          )}
+          )}*/}
       </Stack>
 
       {/* 3. TABELA DINÂMICA (Renderiza colunas baseadas no config) */}

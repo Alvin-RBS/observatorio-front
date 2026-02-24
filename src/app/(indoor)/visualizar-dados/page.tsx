@@ -25,23 +25,16 @@ import SearchIcon from "@mui/icons-material/Search";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator"; 
 import CloseIcon from "@mui/icons-material/Close";
 import MapIcon from "@mui/icons-material/Map"; 
-import { SelectChangeEvent } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { INDICATORS_DB } from "@/data/indicatorsConfig";
 import { getAttributeValues } from "@/data/domainValues";
-import { fetchFilteredChartsMock } from "@/service/api";
-// --- IMPORTAÇÃO DO DRAG & DROP ---
+import { fetchFilteredCharts } from "@/service/api";
 import { DragDropContext, Droppable, Draggable, DropResult, DraggableStateSnapshot } from "@hello-pangea/dnd";
-
-// --- IMPORTS DE CONTEXTO E TIPAGEM ---
 import { useDashboard, ChartConfig } from "@/context/DashboardContext";
 
 // --- IMPORTS DINÂMICOS (Lazy Loading) ---
-
-// 1. ApexCharts
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-// 2. Mapa Robusto (Leaflet)
 const PernambucoMap = dynamic(
   () => import("@/features/dashBoard/components/MapPe"), 
   { 
@@ -54,15 +47,12 @@ const PernambucoMap = dynamic(
   }
 );
 
-// Converte o formato do ApexCharts (Arrays) para o formato do Mapa (Objeto Chave-Valor)
+// --- HELPERS ---
 const transformDataForMap = (chartData: ChartConfig): Record<string, number> => {
     const mapData: Record<string, number> = {};
-    
-    // Tenta pegar as categorias (cidades) e os valores da série
     const categories = chartData.options?.xaxis?.categories || [];
     const values = chartData.series?.[0]?.data || [];
 
-    // Mapeia array para objeto: { "Recife": 120, "Olinda": 50 }
     categories.forEach((city: string | number, index: number) => {
         if (typeof city === 'string' && values[index] !== undefined) {
             mapData[city] = Number(values[index]);
@@ -72,19 +62,13 @@ const transformDataForMap = (chartData: ChartConfig): Record<string, number> => 
     return mapData;
 };
 
-// Helper para converter nossos tipos customizados para tipos do ApexCharts
 const getApexType = (customType: string): any => {
-    // Se for bar-horizontal ou bar-vertical, pro ApexCharts é tudo "bar"
     if (customType === 'bar-horizontal' || customType === 'bar-vertical') return 'bar';
-    
-    // Se for geomap, retornamos null ou qualquer string, pois não será usado no Chart (temos um if antes)
     if (customType === 'geomap') return 'bar'; 
-
-    // Para os outros (line, pie, area, etc), o nome é igual
     return customType;
 };
 
-// 1. Componente de Card de Gráfico Individual (Draggable)
+// --- COMPONENTE DE CARD DE GRÁFICO ---
 const ChartCard = ({ 
   data, 
   onZoom, 
@@ -100,7 +84,6 @@ const ChartCard = ({
 }) => {
   
   const mapData = useMemo(() => transformDataForMap(data), [data]);
-
   const showPlaceholder = snapshot.isDragging || isReordering;
 
   return (
@@ -129,7 +112,6 @@ const ChartCard = ({
            <IconButton size="small" onClick={() => onZoom(data)}>
               <SearchIcon fontSize="small" />
            </IconButton>
-           
            <Box 
               {...provided.dragHandleProps} 
               sx={{ cursor: "grab", display: "flex", alignItems: "center" }}
@@ -176,9 +158,6 @@ const ChartCard = ({
     </Paper>
   );
 };
-
-
-
 interface FilterConfig {
   label: string;
   key: string;
@@ -187,37 +166,21 @@ interface FilterConfig {
 
 // 2. Componente da LINHA DO INDICADOR
 const IndicatorRow = ({ 
-    title, 
-    contextFilters, 
-    initialCharts, 
-    indicatorId,
-    type,
-    multiplier
+    title, contextFilters, initialCharts, indicatorId, type, multiplier
 }: { 
-    title: string, 
-    contextFilters: FilterConfig[], 
-    initialCharts: ChartConfig[],
-    indicatorId: string,
-    type: 'ABSOLUTE' | 'RATE', 
-    multiplier?: number,       
-  
+    title: string, contextFilters: FilterConfig[], initialCharts: ChartConfig[], indicatorId: string, type: 'ABSOLUTE' | 'RATE', multiplier?: number,       
 }) => {
   const router = useRouter();
+  const { updateChartOrder } = useDashboard();
   
-  // Estado local para manipulação visual (reordenação local antes de salvar)
   const [charts, setCharts] = useState<ChartConfig[]>(initialCharts);
-
-  // Estado global de arraste: True se o usuário estiver segurando qualquer card
   const [isReordering, setIsReordering] = useState(false);
-  
   const [isFiltering, setIsFiltering] = useState(false);
-  // Atualiza o estado local se os dados vindos do pai (Contexto) mudarem
+  const [expandedChart, setExpandedChart] = useState<ChartConfig | null>(null);
+  const [isGridModalOpen, setIsGridModalOpen] = useState(false);
   useMemo(() => {
     setCharts(initialCharts);
   }, [initialCharts]);
-
-  const [expandedChart, setExpandedChart] = useState<ChartConfig | null>(null);
-  const [isGridModalOpen, setIsGridModalOpen] = useState(false);
 
   // Memoiza dados para o modal de zoom (para não recalcular mapa no render do modal)
   const expandedMapData = useMemo(() => {
@@ -229,22 +192,14 @@ const IndicatorRow = ({
 
   const [filters, setFilters] = useState<Record<string, string>>({
     inicio: "2025-01-01",
-    fim: new Date().toISOString().split('T')[0],
-    ...contextFilters.reduce((acc, curr) => ({ ...acc, [curr.key]: "" }), {})
-  });
+    fim: new Date().toISOString().split('T')[0], ...contextFilters.reduce((acc, curr) => ({ ...acc, [curr.key]: "" }), {})});
 
+  const handleFilterChange = (e: any) => {setFilters({ ...filters, [e.target.name]: e.target.value });};
 
-  const handleFilterChange = (e: any) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
-  };
+  const onDragStart = () => { setIsReordering(true);};
 
-  const onDragStart = () => {
-    setIsReordering(true);
-  };
-
-  // Detecta FIM do arraste
   const onDragEnd = (result: DropResult) => {
-    setIsReordering(false); // Libera a renderização dos mapas
+    setIsReordering(false);
 
     if (!result.destination) return;
 
@@ -253,6 +208,10 @@ const IndicatorRow = ({
     items.splice(result.destination.index, 0, reorderedItem);
 
     setCharts(items);
+
+    if (updateChartOrder) {
+        updateChartOrder(indicatorId, items);
+    }
   };
 
   const getChipConfig = () => {
@@ -271,34 +230,22 @@ const IndicatorRow = ({
   const chipConfig = getChipConfig();
 
   useEffect(() => {
-      // Cria a função assíncrona para buscar os dados
       const loadFilteredData = async () => {
-          setIsFiltering(true); // Liga o loading da tela
-          
+          setIsFiltering(true);
           try {
-              // =================================================================
-              // MODO PRODUÇÃO :
-              // const queryParams = new URLSearchParams(filters).toString();
-              // const response = await fetch(`http://localhost:8080/api/indicators/${indicatorId}/charts?${queryParams}`);
-              // const data = await response.json();
-              // setCharts(data);
-              // =================================================================
-              
-              // MODO DESENVOLVIMENTO (Falsa API):
-              const data = await fetchFilteredChartsMock(indicatorId, filters, initialCharts);
+              const data = await fetchFilteredCharts(indicatorId, filters);
               setCharts(data);
-              
           } catch (error) {
-              console.error("Erro ao buscar dados do servidor:", error);
-              // Aqui você posso colocar um toast de erro: "Falha ao aplicar filtros"
+              console.error(`Erro ao buscar dados do servidor para o indicador ${indicatorId}:`, error);
           } finally {
-              setIsFiltering(false); // Desliga o loading independente de sucesso ou erro
+              setIsFiltering(false);
           }
       };
 
-      loadFilteredData();
-
-  }, [filters, indicatorId, initialCharts]); // Refaz a busca sempre que os filtros mudarem
+      if (indicatorId) {
+          loadFilteredData();
+      }
+  }, [filters, indicatorId]);
   
 
   return (
@@ -581,7 +528,6 @@ export default function DashboardPage() {
 
       {/* RENDERIZAÇÃO DINÂMICA DE TODOS OS INDICADORES */}
       {INDICATORS_DB.map((indicator, index) => {
-        // 1. Busca os gráficos usando o ID real (ex: "1", "2")
         const indicatorCharts = getChartsByIndicator(indicator.id);
         const municipioAttr = indicator.calculationAttributes.find(a => a.id === 'municipio');
         const contextAttributes = indicator.contextAttributes.filter(attr => attr.id !== 'data' && attr.id !== 'ano');
@@ -603,7 +549,6 @@ export default function DashboardPage() {
                     multiplier={indicator.multiplier}
                 />
                 
-                {/* Renderiza o divisor visual entre as linhas, exceto após a última */}
                 {index < INDICATORS_DB.length - 1 && (
                     <Box sx={{ height: 4, bgcolor: "#E5E7EB", my: 4, borderRadius: 2 }} />
                 )}

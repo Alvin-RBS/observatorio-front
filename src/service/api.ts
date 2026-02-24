@@ -1,8 +1,7 @@
 import axios from "axios";
 import { ChartConfig } from "@/context/DashboardContext";
 
-// Pega a URL do Gateway (via Rewrite do Next.js, então usamos caminho relativo)
-// Se estiver rodando no servidor (SSR), precisa da URL completa, mas geralmente Axios roda no cliente aqui.
+// Deixe vazio ("") para usar o domínio atual (Vercel) e cair no proxy do next.config.js
 const BASE_URL = ""; 
 
 export const apiClient = axios.create({
@@ -10,13 +9,12 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true, // Importante para cookies
+  //withCredentials: true, // Importante para cookies
 });
 
-// --- 1. INTERCEPTOR DE REQUISIÇÃO (Antes de enviar) ---
+/* --- 1. INTERCEPTOR DE REQUISIÇÃO (Injeta o Token) ---
 apiClient.interceptors.request.use(
   (config) => {
-    // Tenta pegar o token do localStorage
     if (typeof window !== "undefined") {
       const userDataRaw = localStorage.getItem("userData");
       if (userDataRaw) {
@@ -24,7 +22,6 @@ apiClient.interceptors.request.use(
           const userData = JSON.parse(userDataRaw);
           const token = userData?.access_token;
           
-          // Se tiver token, injeta no cabeçalho
           if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
           }
@@ -38,40 +35,36 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// --- 2. INTERCEPTOR DE RESPOSTA (Se der erro) ---
+// --- 2. INTERCEPTOR DE RESPOSTA (Renova o Token) ---
 apiClient.interceptors.response.use(
-  (response) => response, // Se deu certo, só passa
+  (response) => response, 
   async (error) => {
     const originalRequest = error.config;
 
-    // Se o erro for 401 (Não autorizado) e ainda não tentamos renovar...
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
         console.log("🔄 Token expirado. Tentando renovar...");
         
-        // Chama a rota de refresh (ajuste a URL conforme seu backend)
-        const response = await axios.post("/api/v1/auth/refresh-token", {}, {
-            withCredentials: true // O Refresh Token geralmente vem via Cookie HttpOnly
+        // Cuidado aqui: Se a rota de refresh for no backend da AWS, lembre-se de usar o proxy /api-backend/
+        const response = await axios.post("/api-backend/api/v1/auth/refresh-token", {}, {
+            withCredentials: true 
         });
 
         const { access_token } = response.data;
 
-        // Salva o novo token no localStorage
         const userDataRaw = localStorage.getItem("userData");
         const userData = userDataRaw ? JSON.parse(userDataRaw) : {};
         userData.access_token = access_token;
         localStorage.setItem("userData", JSON.stringify(userData));
 
-        // Atualiza o token na requisição que falhou e tenta de novo
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
         return apiClient(originalRequest);
 
       } catch (refreshError) {
         console.error("❌ Sessão expirada. Faça login novamente.");
         
-        // Se falhar o refresh, desloga o usuário
         if (typeof window !== "undefined") {
             localStorage.removeItem("userData");
             window.location.href = "/login";
@@ -82,44 +75,35 @@ apiClient.interceptors.response.use(
 
     return Promise.reject(error);
   }
-);
+)*/
 
-// --- SIMULADOR DE API DO BACKEND ---
-// Quando o Spring Boot estiver pronto, você vai deletar essa função.
-export const fetchFilteredChartsMock = async (
+// --- 3. INTEGRAÇÃO REAL DOS GRÁFICOS ---
+export const fetchFilteredCharts = async (
     indicatorId: string, 
-    filters: Record<string, string>, 
-    baseCharts: ChartConfig[]
+    filters: Record<string, string>
 ): Promise<ChartConfig[]> => {
-    return new Promise((resolve) => {
-        // Simula o delay de internet e banco de dados (600ms)
-        setTimeout(() => {
-            // Verifica se tem filtros ativos (ignorando as datas padrão para o mock não ficar sempre vazio)
-            const hasActiveFilters = Object.entries(filters).some(
-                ([key, value]) => value !== "" && key !== "inicio" && key !== "fim"
-            );
+    
+    // 1. Limpa os filtros que estiverem vazios
+    const cleanFilters = Object.entries(filters).reduce((acc, [key, value]) => {
+        if (value && value.trim() !== "") {
+            acc[key] = value;
+        }
+        return acc;
+    }, {} as Record<string, string>);
 
-            if (!hasActiveFilters) {
-                resolve(baseCharts); // Retorna os dados cheios do banco
-                return;
-            }
+    try {
+        // 2. Chama a rota falsa da Vercel (que será redirecionada pelo next.config.js para a AWS)
+        // O Axios pega o 'cleanFilters' e monta automaticamente: ?municipio=Recife&sexo=Feminino
+        const response = await apiClient.get<ChartConfig[]>(
+            `/api-backend/api/indicadores/${indicatorId}/graficos`, 
+            { params: cleanFilters } 
+        );
 
-            // MOCK: Reduz os valores apenas para provar que a "API" filtrou os dados
-            const filteredData = baseCharts.map(chart => {
-                const newSeries = JSON.parse(JSON.stringify(chart.series));
-                if (chart.type === 'pie' || chart.type === 'donut') {
-                    newSeries.forEach((val: number, i: number) => { newSeries[i] = Math.max(1, Math.floor(val * 0.4)); });
-                } else if (chart.type === 'treemap' || chart.type === 'heatmap') {
-                     newSeries.forEach((s: any) => { s.data.forEach((d: any) => { d.y = Math.max(1, Math.floor(d.y * 0.4)); }); });
-                } else {
-                    newSeries.forEach((s: any) => {
-                        if (s.data) s.data = s.data.map((v: number) => Math.max(1, Math.floor(v * 0.4)));
-                    });
-                }
-                return { ...chart, series: newSeries };
-            });
+        // 3. O Axios já converte o JSON automaticamente, basta retornar o '.data'
+        return response.data;
 
-            resolve(filteredData);
-        }, 600);
-    });
+    } catch (error) {
+        console.error(`Falha ao buscar gráficos do indicador ${indicatorId}:`, error);
+        throw error;
+    }
 };

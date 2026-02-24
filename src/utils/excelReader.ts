@@ -8,10 +8,10 @@ export const readExcelPreview = (file: File, previewLimit = 50): Promise<{ matri
       try {
         const data = e.target?.result;
 
-        // 1. MUDANÇA AQUI: 'cellDates: true' deve ficar na leitura do Workbook
+        // 1.'cellDates: true' deve ficar na leitura do Workbook
         const workbook = XLSX.read(data, { 
             type: "array",
-            cellDates: true // <--- Isso converte os números serializados em Objetos JS Date imediatamente
+            cellDates: true // converte os números serializados em Objetos JS Date imediatamente
         });
 
         const firstSheetName = workbook.SheetNames[0];
@@ -20,7 +20,7 @@ export const readExcelPreview = (file: File, previewLimit = 50): Promise<{ matri
         // 2. Extração para JSON
         const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { 
             header: 1, 
-            raw: true, // <--- Importante: Queremos o objeto Date real, não uma string formatada pelo Excel (que pode vir em inglês)
+            raw: true, 
             defval: "" 
         });
 
@@ -34,8 +34,7 @@ export const readExcelPreview = (file: File, previewLimit = 50): Promise<{ matri
             return row.map((cell) => {
               // 4. Formatação Manual: Se for data, força o padrão BR
               if (cell instanceof Date) {
-                 // Adiciona um pequeno ajuste de timezone se necessário, 
-                 // mas geralmente toLocaleDateString resolve para visualização
+
                  return cell.toLocaleDateString("pt-BR"); 
               }
               return cell;

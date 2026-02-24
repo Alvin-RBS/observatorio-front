@@ -1,14 +1,9 @@
-"use client";
-
-import { 
-  Box, Typography, Grid, Paper, MenuItem, 
-  Select, Divider, Alert, Stack, Chip 
-} from "@mui/material";
+import { Box, Typography, Grid, Paper, MenuItem, Select, Divider, Alert, Stack, Chip, CircularProgress } from "@mui/material";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import { useEffect, useMemo } from "react";
-import { getIndicatorConfig, IndicatorAttribute } from "@/data/indicatorsConfig";
+import { useEffect, useState, useMemo } from "react";
+// Importamos o serviço novo
+import { getIndicatorById, IndicatorConfig, IndicatorAttribute } from "@/features/data-import/services/indicatorService";
 
 interface Step4MapColumnsProps {
   mappings: Record<string, { excelColumn: string; status: string }>; 
@@ -17,19 +12,26 @@ interface Step4MapColumnsProps {
   indicatorId: string;   
 }
 
-export default function Step4MapColumns({ 
-  mappings, 
-  setMappings, 
-  fileColumns, 
-  indicatorId 
-}: Step4MapColumnsProps) {
+export default function Step4MapColumns({ mappings, setMappings, fileColumns, indicatorId }: Step4MapColumnsProps) {
+  const [indicatorConfig, setIndicatorConfig] = useState<IndicatorConfig | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // 1. Carrega a configuração do indicador
-  const indicatorConfig = useMemo(() => {
-    return getIndicatorConfig(indicatorId);
+  // 1. Busca a configuração no Java assim que a tela abre
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const data = await getIndicatorById(indicatorId);
+        setIndicatorConfig(data);
+      } catch (error) {
+        console.error("Erro ao carregar colunas do indicador:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadConfig();
   }, [indicatorId]);
 
-  // 2. Inicializa o mapeamento
+  // 2. Inicializa o mapeamento automático quando o config do Java chegar
   useEffect(() => {
     if (!indicatorConfig) return;
 
@@ -55,12 +57,13 @@ export default function Step4MapColumns({
     }
   }, [indicatorConfig, fileColumns]); 
 
+  // Ajustado: Se o valor for vazio (Nenhum), o status volta para "pending"
   const handleMappingChange = (systemAttrId: string, selectedExcelColumn: string) => {
     setMappings((prev: any) => ({
         ...prev,
-        [systemAttrId]: {
-            excelColumn: selectedExcelColumn,
-            status: "confirmed"
+        [systemAttrId]: { 
+            excelColumn: selectedExcelColumn, 
+            status: selectedExcelColumn === "" ? "pending" : "confirmed" 
         }
     }));
   };
@@ -73,6 +76,14 @@ export default function Step4MapColumns({
     return used;
   }, [mappings]);
 
+  if (loading) {
+  return (
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={10}>
+      <CircularProgress size={48} sx={{ mb: 2 }} />
+      <Typography color="text.secondary">Carregando campos do indicador...</Typography>
+    </Box>
+  );
+}
   if (!indicatorConfig) return <Alert severity="error">Erro: Indicador não encontrado.</Alert>;
 
   const MappingRow = ({ attribute }: { attribute: IndicatorAttribute }) => {
@@ -80,50 +91,36 @@ export default function Step4MapColumns({
     const isMapped = !!currentMapping;
 
     return (
-        <Paper 
-            variant="outlined" 
-            sx={{ 
-                p: 2, 
-                bgcolor: isMapped ? "#F0FDF4" : "white", 
-                borderColor: isMapped ? "success.light" : "divider",
-                transition: "all 0.3s" 
-            }}
-        >
+        <Paper variant="outlined" sx={{ p: 2, bgcolor: isMapped ? "#F0FDF4" : "white", borderColor: isMapped ? "success.light" : "divider" }}>
             <Grid container spacing={2} alignItems="center">
-                
                 <Grid size={{ xs: 12, md: 5 }}>
-                    <Box display="flex" flexDirection="column">
-                        <Typography variant="subtitle2" fontWeight="bold">
+                    <Box display="flex" flexDirection="column" sx={{ alignItems: "center" }}>
+                        
+                        <Typography  fontWeight="bold">
                             {attribute.label}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Campo obrigatório do sistema
+                        <Typography variant="caption" color={attribute.required ? "error.main" : "text.secondary"}>
+                            {attribute.required ? "* Campo obrigatório" : "Opcional"}
                         </Typography>
                     </Box>
                 </Grid>
-
-                <Grid size ={{md: 1}} display="flex" justifyContent="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+                <Grid size={{ md: 1 }} display="flex" justifyContent="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
                     <ArrowForwardIcon color="action" />
                 </Grid>
-
                 <Grid size={{ xs: 12, md: 5 }}>
                     <Select
-                        fullWidth
-                        size="small"
-                        displayEmpty
-                        value={currentMapping}
+                        fullWidth size="small" displayEmpty value={currentMapping}
                         onChange={(e) => handleMappingChange(attribute.id, e.target.value)}
-                        renderValue={(selected) => {
-                            if (!selected) {
-                                return <Typography color="text.secondary">Selecione a coluna da planilha</Typography>;
-                            }
-                            return selected;
-                        }}
+                        renderValue={(selected) => selected ? selected : <Typography color="text.secondary">Selecione a coluna da planilha</Typography>}
                         sx={{ bgcolor: "white" }}
                     >
+                        {/* OPÇÃO DE LIMPAR A SELEÇÃO */}
+                        <MenuItem value="">
+                            <Typography color="text.secondary">Não relacionar</Typography>
+                        </MenuItem>
+
                         {fileColumns.map((col) => {
                             const isUsedElsewhere = usedExcelColumns.has(col) && col !== currentMapping;
-                            
                             return (
                                 <MenuItem key={col} value={col} disabled={isUsedElsewhere}>
                                     {col} {isUsedElsewhere && "(Já selecionada)"}
@@ -131,13 +128,10 @@ export default function Step4MapColumns({
                             );
                         })}
                     </Select>
-                    
                     {isMapped && (
                         <Box display="flex" alignItems="center" gap={0.5} mt={1}>
                             <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
-                            <Typography variant="caption" color="success.main" fontWeight="bold">
-                                Mapeado com sucesso
-                            </Typography>
+                            <Typography variant="caption" color="success.main" fontWeight="bold">Mapeado</Typography>
                         </Box>
                     )}
                 </Grid>
@@ -153,13 +147,6 @@ export default function Step4MapColumns({
         <Typography variant="body2" color="text.secondary" mb={2}>
           Para importar dados para o indicador <strong>{indicatorConfig.label}</strong>, identifique quais colunas da planilha correspondem aos campos abaixo.
         </Typography>
-
-        {indicatorConfig.type === 'RATE' && (
-            <Alert severity="info" icon={<InfoOutlinedIcon />} sx={{ mb: 2 }}>
-                Este é um indicador de <strong>TAXA (por {indicatorConfig.multiplier?.toLocaleString()})</strong>. 
-                O sistema usará a coluna mapeada como <strong>Município</strong> para buscar a população no banco.
-            </Alert>
-        )}
       </Box>
 
       <Box mb={4}>
@@ -190,7 +177,6 @@ export default function Step4MapColumns({
             ))}
         </Stack>
       </Box>
-
     </Box>
   );
 }

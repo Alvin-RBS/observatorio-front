@@ -2,46 +2,69 @@ import { apiClient } from "@/service/api";
 
 interface ImportPayload {
   indicatorId: string;
-  mappings: Record<string, string>;
-  fileColumns: string[]; //Lista das colunas originais para auditoria
+  mappings: Record<string, number>; 
 }
 
 export const uploadImportData = async (
   file: File,
   indicatorId: string,
-
   mappings: Record<string, { excelColumn: string; status: string }>,
-  fileColumns: string[]
+  fileColumns: string[] 
 ) => {
   const formData = new FormData();
-
-  // 1. Anexa o arquivo binário
   formData.append("file", file);
 
-  // 2. Transforma o objeto de mapeamento complexo em algo simples para o Backend
-  const simplifiedMappings: Record<string, string> = {};
+  const numericMappings: Record<string, number> = {};
   
   Object.keys(mappings).forEach((systemId) => {
-    const map = mappings[systemId];
-    if (map && map.excelColumn) {
-        simplifiedMappings[systemId] = map.excelColumn;
+    const columnName = mappings[systemId]?.excelColumn;
+    
+    if (columnName) {
+        const columnIndex = fileColumns.indexOf(columnName);
+        if (columnIndex !== -1) {
+            numericMappings[systemId] = columnIndex;
+        }
     }
   });
 
-  // 3. Monta o objeto de metadados
-  const metadata: ImportPayload = {
+  const payloadData: ImportPayload = {
     indicatorId,
-    mappings: simplifiedMappings,
-    fileColumns
+    mappings: numericMappings,
   };
 
-  // 4. Anexa os metadados como JSON stringificado
-  formData.append("metadata", JSON.stringify(metadata));
+  formData.append("payload", JSON.stringify(payloadData));
 
-const response = await apiClient.post("/api/spreadsheet/upload", formData, {
+  const response = await apiClient.post("/api-backend/spreadsheet/api/import", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+  });
+
+  return response.data;
+};
+
+export const validateImportMappings = async (
+  indicatorId: string,
+  mappings: Record<string, { excelColumn: string; status: string }>,
+  fileColumns: string[] 
+) => {
+  
+  const numericMappings: Record<string, number> = {};
+  
+  Object.keys(mappings).forEach((systemId) => {
+    const columnName = mappings[systemId]?.excelColumn;
+    
+    if (columnName) {
+        const columnIndex = fileColumns.indexOf(columnName);
+        if (columnIndex !== -1) {
+            numericMappings[systemId] = columnIndex;
+        }
+    }
+  });
+
+  const response = await apiClient.post("/api-backend/spreadsheet/api/import/validate", {
+    indicatorId,
+    mappings: numericMappings
   });
 
   return response.data;
