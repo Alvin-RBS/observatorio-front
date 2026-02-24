@@ -28,14 +28,17 @@ export default function AdicionarDadosPage() {
   const [activeStep, setActiveStep] = useState(0);
   const stepContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (stepContainerRef.current) {
-      stepContainerRef.current.scrollIntoView({ 
-          behavior: "smooth", 
-          block: "start" 
-      });
-    }
-  }, [activeStep]); 
+useEffect(() => {
+    const timer = setTimeout(() => {
+      if (stepContainerRef.current) {
+        stepContainerRef.current.scrollIntoView({ 
+            behavior: "smooth", 
+            block: "start" 
+        });
+      }
+    }, 1000); 
+    return () => clearTimeout(timer);
+  }, [activeStep]);
 
   const { uploadedFile, setUploadedFile: setContextFile } = useFile();
   const [file, setFile] = useState<File | null>(null);
@@ -203,7 +206,7 @@ const isStepValid = () => {
         </Typography>
       </Box>
 
-      <Box sx={{ width: "100%", mb: 5 }}>
+      <Box ref={stepContainerRef}  sx={{ width: "100%", mb: 5 }}>
         <Stepper activeStep={activeStep} alternativeLabel>
           {steps.map((label) => (
             <Step key={label}>
@@ -213,7 +216,7 @@ const isStepValid = () => {
         </Stepper>
       </Box>
 
-      <Paper ref={stepContainerRef} elevation={0} sx={{ p: 4, minHeight: "50vh", border: "1px solid #E0E0E0" }}>
+      <Paper elevation={0} sx={{ p: 4, minHeight: "50vh", border: "1px solid #E0E0E0" }}>
         
         {activeStep === 0 && <Step0Upload file={file} setFile={handleFileChange} />}
 
