@@ -1,379 +1,392 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import {
   Box,
   Typography,
   Paper,
   Grid,
-  TextField,
-  MenuItem,
   Button,
   Container,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
   Divider,
-  SxProps,
-  Theme,
+  Alert,
+  SelectChangeEvent,
+  CircularProgress,
+  Chip
 } from "@mui/material";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import PieChartIcon from "@mui/icons-material/PieChart";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import TableChartIcon from "@mui/icons-material/TableChart";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { useSearchParams, useRouter } from "next/navigation";
 
-// --- DADOS MOCKADOS ---
-const MUNICIPIOS = ["Recife", "Olinda", "Jaboatão", "Caruaru"];
-const BAIRROS = ["Graças", "Boa Viagem", "Casa Forte", "Derby"];
-const NATUREZAS = ["Homicídio", "Roubo", "Furto", "Tráfico"];
-const IDADES = ["18-24", "25-34", "35-44", "+45"];
-const SEXOS = ["Masculino", "Feminino", "Outro"];
-const OCORRENCIAS = ["1", "2-5", "+5"];
+// --- IMPORTAÇÕES DO SEU ECOSSISTEMA ---
+import { INDICATORS_DB } from "@/data/indicatorsConfig";
+import { useDashboard, ChartConfig } from "@/context/DashboardContext";
+// Caso tenha um arquivo com as listas suspensas (domínios), você pode importá-lo. 
+// Para este exemplo, deixei os valores locais para não quebrar a tela.
+const MUNICIPIOS = ["Recife", "Olinda", "Jaboatão dos Guararapes", "Paulista", "Camaragibe"];
+const FAIXAS_ETARIAS = ["0 a 17 anos", "18 a 29 anos", "30 a 59 anos", "60 anos ou mais"];
+const SEXO = ["Feminino", "Masculino", "Outros", "Não informado"];
 
-export default function RelatoriosPage() {
-  const [formData, setFormData] = useState({
-    dataInicio: "2025-01-01",
-    dataFim: "2025-01-30",
+function CriarRelatorioContent() {
+  const searchParams = useSearchParams();
+  const { getChartsByIndicator } = useDashboard();
+  
+  // 1. Tenta pegar o ID da URL (Fluxo FA-01.01). Se não, usa o primeiro indicador disponível.
+  const urlIndicatorId = searchParams.get("indicatorId");
+  const initialId = urlIndicatorId && INDICATORS_DB.some(i => i.id === urlIndicatorId) 
+        ? urlIndicatorId 
+        : INDICATORS_DB[0]?.id || "";
+
+  // --- ESTADOS ---
+  const [selectedIndicatorId, setSelectedIndicatorId] = useState<string>(initialId);
+  const [availableCharts, setAvailableCharts] = useState<ChartConfig[]>([]);
+  const [graficosSelecionados, setGraficosSelecionados] = useState<string[]>([]);
+  const [textoPersonalizado, setTextoPersonalizado] = useState("");
+  
+  const [filtros, setFiltros] = useState({
+    dataInicial: "",
+    dataFinal: "",
     municipio: "Recife",
-    bairro: "Graças",
-    natureza: "",
     idade: "",
     sexo: "",
-    ocorrencias: "",
+    numOcorrencias: ""
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const [loading, setLoading] = useState(false);
+  const [erroValidacao, setErroValidacao] = useState("");
+  const [alertaSistema, setAlertaSistema] = useState<{ tipo: "error" | "warning" | "info", msg: string } | null>(null);
+
+  const currentIndicator = INDICATORS_DB.find(i => i.id === selectedIndicatorId);
+
+  // --- EFEITOS ---
+  // Atualiza a lista de gráficos disponíveis sempre que o indicador muda
+  useEffect(() => {
+    if (selectedIndicatorId) {
+      const charts = getChartsByIndicator(selectedIndicatorId);
+      setAvailableCharts(charts);
+      setGraficosSelecionados([]); // Limpa a seleção ao trocar de indicador
+    }
+  }, [selectedIndicatorId, getChartsByIndicator]);
+
+
+  // --- HANDLERS ---
+  const handleFiltroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFiltros({ ...filtros, [e.target.name]: e.target.value });
+    setErroValidacao(""); 
   };
 
-  // --- ESTILO PARA CORRIGIR O BUG DA LINHA NO SELECT ---
-  // Aplica um fundo branco ao label quando ele flutua, cobrindo a linha do input.
-  const selectFieldStyle: SxProps<Theme> = {
-    "& .MuiInputLabel-outlined.MuiInputLabel-shrink": {
-      backgroundColor: "#FFFFFF",
-      paddingInline: "4px", // Um pequeno respiro nas laterais do texto
-    },
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
+
+  const handleCheckboxChange = (id: string) => {
+    setGraficosSelecionados(prev => 
+      prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+    );
+  };
+
+  const validarDatas = () => {
+    if (!filtros.dataInicial || !filtros.dataFinal) return true;
+
+    const dtInicial = new Date(filtros.dataInicial);
+    const dtFinal = new Date(filtros.dataFinal);
+    const hoje = new Date();
+
+    if (dtInicial > dtFinal) {
+      setErroValidacao("A data inicial não pode ser maior que a data final.");
+      return false;
+    }
+    if (dtInicial > hoje || dtFinal > hoje) {
+      setErroValidacao("Não é possível gerar relatórios para datas futuras.");
+      return false;
+    }
+
+    setErroValidacao("");
+    return true;
+  };
+
+  const handleGerarRelatorio = (tipo: "PDF" | "CSV") => {
+    setAlertaSistema(null);
+    if (!validarDatas()) return;
+    setLoading(true);
+
+    setTimeout(() => {
+      setLoading(false);
+
+      if (filtros.dataInicial.startsWith("2024") || filtros.dataInicial.startsWith("2025")) {
+        setAlertaSistema({ tipo: "info", msg: "Não foram encontrados registros para os filtros selecionados." });
+        return;
+      }
+
+      if (Number(filtros.numOcorrencias) > 10000) {
+        setAlertaSistema({ tipo: "warning", msg: "O relatório é muito extenso para ser gerado de uma vez. Por favor, diminua o período de tempo ou filtre por uma região específica." });
+        return;
+      }
+
+      alert(`Relatório do indicador "${currentIndicator?.label}" gerado em ${tipo} com sucesso!`);
+    }, 1500);
+  };
+
+  const labelProps = { shrink: true, sx: { bgcolor: "white", px: 1 } };
 
   return (
-    <Container
-      maxWidth="xl"
-      sx={{
-        py: 4,
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        bgcolor: "#FFFFFF", // CORREÇÃO 2: Fundo branco puro
-      }}
-    >
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box mb={4}>
-        {/* CORREÇÃO 1: Cor do título original (#333) */}
-        <Typography variant="h4" fontWeight="bold" color="#333">
-          Geração de Relatórios
+        <Typography variant="h4" fontWeight="bold" sx={{ color: "#333" }}>
+          Gerar Relatório
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-          Configure os filtros abaixo para customizar a exportação de dados do
-          Observatório.
+        <Typography variant="body1" color="text.secondary" mt={0.5}>
+          Selecione o indicador, configure os filtros e adicione os gráficos para compor o seu documento.
         </Typography>
       </Box>
 
-      <Grid container spacing={4} sx={{ flexGrow: 1 }}>
-        {/* --- COLUNA DA ESQUERDA (FILTROS) --- */}
-        <Grid size={{ xs: 12, md: 5, lg: 4 }}>
-          <Paper
-            elevation={0} // Removi a elevação alta para ficar mais limpo no fundo branco
-            sx={{
-              p: 4,
-              borderRadius: 3,
-              height: "100%",
-              border: "1px solid #E0E0E0", // Borda sutil para delimitar no fundo branco
-            }}
-          >
-            <Typography
-              variant="h6"
-              fontWeight="600"
-              sx={{ mb: 3, color: "#333" }}
-            >
-              Filtros de Seleção
+      {alertaSistema && (
+        <Alert severity={alertaSistema.tipo} sx={{ mb: 4, fontWeight: "bold" }}>
+          {alertaSistema.msg}
+        </Alert>
+      )}
+
+      <Grid container spacing={4}>
+        {/* --- COLUNA ESQUERDA: PAINEL DE CONTROLE --- */}
+        <Grid size={{xs: 12, md: 5, lg: 4}}>
+          <Paper elevation={2} sx={{ p: 3, borderRadius: 2, border: "1px solid #E5E7EB" }}>
+            
+            <Typography variant="h6" fontWeight="bold" color="#1E3A8A" mb={3}>
+              Parâmetros Básicos
             </Typography>
 
-            <Grid container spacing={3}>
-              {/* Grupo de Datas */}
-              <Grid size={{ xs: 12 }}>
-                <Typography
-                  variant="subtitle2"
-                  fontWeight="bold"
-                  color="text.secondary"
-                  mb={1}
+            <Box display="flex" flexDirection="column" gap={3}>
+              
+              {/* 1. SELEÇÃO DE INDICADOR */}
+              <FormControl fullWidth>
+                <InputLabel shrink sx={{ bgcolor: "white", px: 1 }}>Indicador Analítico</InputLabel>
+                <Select 
+                    value={selectedIndicatorId} 
+                    onChange={(e) => setSelectedIndicatorId(e.target.value)}
+                    sx={{ bgcolor: "#F8FAFC", fontWeight: "bold" }}
                 >
-                  Período de Análise
-                </Typography>
-                <Box display="flex" gap={2}>
-                  <TextField
-                    label="Data Início"
-                    type="date"
-                    name="dataInicio"
-                    value={formData.dataInicio}
-                    onChange={handleChange}
-                    fullWidth
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                  <TextField
-                    label="Data Fim"
-                    type="date"
-                    name="dataFim"
-                    value={formData.dataFim}
-                    onChange={handleChange}
-                    fullWidth
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                </Box>
-              </Grid>
+                    {INDICATORS_DB.map((indicator) => (
+                        <MenuItem key={indicator.id} value={indicator.id}>
+                            {indicator.label}
+                        </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
 
-              <Grid size={{ xs: 12 }}>
-                <Divider />
-              </Grid>
+              <Divider />
 
-              {/* Localização */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  label="Município"
-                  name="municipio"
-                  value={formData.municipio}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  sx={selectFieldStyle} // CORREÇÃO 3: Aplicando a correção do bug
-                >
-                  {MUNICIPIOS.map((m) => (
-                    <MenuItem key={m} value={m}>
-                      {m}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              {/* 2. FILTROS DE TEMPO E LOCAL */}
+              <Box display="flex" gap={2}>
+                <TextField 
+                  label="Data Inicial" 
+                  name="dataInicial" 
+                  type="date" 
+                  value={filtros.dataInicial} 
+                  onChange={handleFiltroChange} 
+                  onBlur={validarDatas}
+                  fullWidth 
+                  InputLabelProps={labelProps} 
+                  error={!!erroValidacao}
+                />
+                <TextField 
+                  label="Data Final" 
+                  name="dataFinal" 
+                  type="date" 
+                  value={filtros.dataFinal} 
+                  onChange={handleFiltroChange} 
+                  onBlur={validarDatas}
+                  fullWidth 
+                  InputLabelProps={labelProps} 
+                  error={!!erroValidacao}
+                />
+              </Box>
+              {erroValidacao && <Typography color="error" variant="caption" mt={-2}>{erroValidacao}</Typography>}
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  label="Bairro"
-                  name="bairro"
-                  value={formData.bairro}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  sx={selectFieldStyle} // CORREÇÃO 3
-                >
-                  {BAIRROS.map((b) => (
-                    <MenuItem key={b} value={b}>
-                      {b}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              <FormControl fullWidth>
+                <InputLabel shrink sx={{ bgcolor: "white", px: 1 }}>Município</InputLabel>
+                <Select name="municipio" value={filtros.municipio} onChange={handleSelectChange} displayEmpty>
+                  <MenuItem value="">Todos</MenuItem>
+                  {MUNICIPIOS.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                </Select>
+              </FormControl>
 
-              {/* Natureza */}
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  select
-                  label="Natureza Jurídica"
-                  name="natureza"
-                  value={formData.natureza}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  helperText="Selecione o tipo de crime ou ocorrência"
-                  sx={selectFieldStyle} // CORREÇÃO 3
-                >
-                  {NATUREZAS.map((n) => (
-                    <MenuItem key={n} value={n}>
-                      {n}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              <Box display="flex" gap={2}>
+                <FormControl fullWidth>
+                  <InputLabel shrink sx={{ bgcolor: "white", px: 1 }}>Idade</InputLabel>
+                  <Select name="idade" value={filtros.idade} onChange={handleSelectChange} displayEmpty>
+                    <MenuItem value="">Todas</MenuItem>
+                    {FAIXAS_ETARIAS.map(i => <MenuItem key={i} value={i}>{i}</MenuItem>)}
+                  </Select>
+                </FormControl>
 
-              {/* Perfil */}
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  select
-                  label="Idade"
-                  name="idade"
-                  value={formData.idade}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  sx={selectFieldStyle} // CORREÇÃO 3
-                >
-                  {IDADES.map((i) => (
-                    <MenuItem key={i} value={i}>
-                      {i}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+                <FormControl fullWidth>
+                  <InputLabel shrink sx={{ bgcolor: "white", px: 1 }}>Sexo</InputLabel>
+                  <Select name="sexo" value={filtros.sexo} onChange={handleSelectChange} displayEmpty>
+                    <MenuItem value="">Todos</MenuItem>
+                    {SEXO.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
 
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  select
-                  label="Sexo"
-                  name="sexo"
-                  value={formData.sexo}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  sx={selectFieldStyle} // CORREÇÃO 3
-                >
-                  {SEXOS.map((s) => (
-                    <MenuItem key={s} value={s}>
-                      {s}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+              <TextField 
+                label="Limite de Ocorrências" 
+                name="numOcorrencias" 
+                type="number"
+                placeholder="Ex: 5000"
+                value={filtros.numOcorrencias} 
+                onChange={handleFiltroChange} 
+                fullWidth 
+                InputLabelProps={labelProps} 
+              />
+            </Box>
 
-              {/* Ocorrências */}
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  select
-                  label="Número de Ocorrências"
-                  name="ocorrencias"
-                  value={formData.ocorrencias}
-                  onChange={handleChange}
-                  fullWidth
-                  size="small"
-                  sx={selectFieldStyle} // CORREÇÃO 3
-                >
-                  {OCORRENCIAS.map((o) => (
-                    <MenuItem key={o} value={o}>
-                      {o}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
+            <Divider sx={{ my: 4 }} />
+
+            {/* 3. SELEÇÃO DE GRÁFICOS (Baseado no contexto) */}
+            <Typography variant="h6" fontWeight="bold" color="#1E3A8A" mb={1}>
+              Gráficos do Indicador
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Selecione quais gráficos do Dashboard devem constar no relatório:
+            </Typography>
+            
+            <Box display="flex" flexDirection="column" gap={1}>
+              {availableCharts.length > 0 ? (
+                  availableCharts.map(chart => (
+                    <FormControlLabel 
+                      key={chart.id}
+                      control={
+                        <Checkbox 
+                          checked={graficosSelecionados.includes(chart.id)}
+                          onChange={() => handleCheckboxChange(chart.id)}
+                          sx={{ color: "#1E3A8A", '&.Mui-checked': { color: "#1E3A8A" } }}
+                        />
+                      } 
+                      label={<Typography variant="body2">{chart.title}</Typography>} 
+                    />
+                  ))
+              ) : (
+                  <Typography variant="body2" color="error">
+                      Nenhum gráfico encontrado para este indicador.
+                  </Typography>
+              )}
+            </Box>
+
           </Paper>
         </Grid>
 
-        {/* --- COLUNA DA DIREITA (PRÉ-VISUALIZAÇÃO) --- */}
-        <Grid
-          size={{ xs: 12, md: 7, lg: 8 }}
-          sx={{ display: "flex", flexDirection: "column" }}
-        >
-          <Box
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            mb={3}
-          >
-            <Typography variant="h6" fontWeight="600" color="#333">
-              Pré-visualização dos Dados
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              A visualização atualiza automaticamente
-            </Typography>
-          </Box>
+        {/* --- COLUNA DIREITA: PRÉ-VISUALIZAÇÃO --- */}
+        <Grid size={{xs: 12, md: 7, lg: 8}}>
+          <Paper elevation={0} sx={{ p: 4, borderRadius: 2, border: "1px dashed #9CA3AF", minHeight: "100%", display: "flex", flexDirection: "column" }}>
+            
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h5" fontWeight="bold" color="#333" display="flex" alignItems="center" gap={1}>
+                <VisibilityIcon color="action" /> Visualização do Documento
+              </Typography>
+              <Chip label="Rascunho" size="small" sx={{ bgcolor: "#F3F4F6", color: "#4B5563", fontWeight: "bold" }} />
+            </Box>
 
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 3,
-              flexGrow: 1,
-            }}
-          >
-            {/* Placeholder Gráfico 1 */}
-            <Paper
-              elevation={0}
-              sx={{
-                bgcolor: "#F8FAFC", // Mantive um cinza muito leve apenas nos placeholders para contraste
-                border: "1px dashed #cbd5e1",
-                borderRadius: 3,
-                height: "45%",
-                minHeight: "250px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "text.secondary",
-              }}
-            >
-              <AssessmentIcon sx={{ fontSize: 60, mb: 2, opacity: 0.3 }} />
-              <Typography variant="body2" fontWeight="medium">
-                Gráfico Temporal de Ocorrências
-              </Typography>
-              <Typography variant="caption">
-                (Aguardando geração de relatório)
-              </Typography>
-            </Paper>
+            <Divider sx={{ mb: 4 }} />
 
-            {/* Placeholder Gráfico 2 */}
-            <Paper
-              elevation={0}
-              sx={{
-                bgcolor: "#F8FAFC",
-                border: "1px dashed #cbd5e1",
-                borderRadius: 3,
-                height: "45%",
-                minHeight: "250px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "text.secondary",
-              }}
-            >
-              <PieChartIcon sx={{ fontSize: 60, mb: 2, opacity: 0.3 }} />
-              <Typography variant="body2" fontWeight="medium">
-                Distribuição por Natureza Jurídica
+            {/* Cabeçalho Fictício do Relatório */}
+            <Box mb={4} textAlign="center">
+              <Typography variant="h4" fontWeight="bold" color="#111827" mb={1}>
+                Relatório: {currentIndicator?.label || "Selecione um Indicador"}
               </Typography>
-              <Typography variant="caption">
-                (Aguardando geração de relatório)
+              <Typography variant="body1" color="text.secondary">
+                {filtros.municipio || "Todos os Municípios"} 
               </Typography>
-            </Paper>
-          </Box>
+              <Typography variant="caption" color="text.secondary">
+                {filtros.dataInicial ? `Período: ${filtros.dataInicial} até ${filtros.dataFinal || 'Hoje'}` : "Período: Todo o histórico disponível"}
+              </Typography>
+            </Box>
+
+            {/* Inserção de Texto (RN06) */}
+            <Box mb={4} flexGrow={1}>
+              <Typography variant="subtitle2" fontWeight="bold" color="#374151" mb={1}>
+                Considerações e Análise Qualitativa
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={6}
+                placeholder="Escreva aqui a sua análise técnica, conclusões ou introdução para este relatório..."
+                value={textoPersonalizado}
+                onChange={(e) => setTextoPersonalizado(e.target.value)}
+                sx={{ bgcolor: "#F9FAFB", "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Box>
+
+            {/* Gráficos na Prévia */}
+            {graficosSelecionados.length > 0 && (
+              <Box mb={4}>
+                <Typography variant="subtitle2" fontWeight="bold" color="#374151" mb={2}>
+                  Anexos Visuais Selecionados ({graficosSelecionados.length})
+                </Typography>
+                <Grid container spacing={2}>
+                  {graficosSelecionados.map(id => {
+                    const chart = availableCharts.find(x => x.id === id);
+                    return (
+                      <Grid size={{xs: 12, sm: 6}} key={id}>
+                        <Box sx={{ p: 2, bgcolor: "#F3F4F6", borderRadius: 1, border: "1px solid #E5E7EB", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center", height: 120 }}>
+                          <Typography variant="body2" fontWeight="bold" color="#1E3A8A">{chart?.title}</Typography>
+                          <Typography variant="caption" color="text.secondary">Gráfico do tipo: {chart?.type}</Typography>
+                        </Box>
+                      </Grid>
+                    )
+                  })}
+                </Grid>
+              </Box>
+            )}
+
+            <Divider sx={{ mt: "auto", mb: 3 }} />
+
+            {/* Botões de Ação Final */}
+            <Box display="flex" justifyContent="flex-end" gap={2}>
+              <Button 
+                variant="outlined" 
+                onClick={() => handleGerarRelatorio("CSV")}
+                disabled={!!erroValidacao || loading}
+                startIcon={<TableChartIcon />}
+                sx={{ textTransform: "none", fontWeight: "bold", borderColor: "#10B981", color: "#10B981", "&:hover": { bgcolor: "#ECFDF5", borderColor: "#059669" } }}
+              >
+                Exportar Dados Brutos (CSV)
+              </Button>
+              <Button 
+                variant="contained" 
+                onClick={() => handleGerarRelatorio("PDF")}
+                disabled={!!erroValidacao || loading || !selectedIndicatorId}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <PictureAsPdfIcon />}
+                sx={{ textTransform: "none", fontWeight: "bold", bgcolor: "#1E3A8A", px: 4, "&:hover": { bgcolor: "#1E40AF" } }}
+              >
+                {loading ? "A processar..." : "Gerar Relatório PDF"}
+              </Button>
+            </Box>
+
+          </Paper>
         </Grid>
       </Grid>
-
-      {/* --- FOOTER DE AÇÃO --- */}
-      <Paper
-        elevation={0}
-        sx={{
-          position: "sticky",
-          bottom: 0,
-          mt: 4,
-          p: 2,
-          borderTop: "1px solid #e2e8f0",
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 2,
-          bgcolor: "#FFFFFF", // Fundo branco no footer também
-        }}
-      >
-        <Button
-          variant="outlined"
-          sx={{
-            px: 4,
-            fontWeight: "600",
-            textTransform: "none",
-            borderColor: "#1E3A8A",
-            color: "#1E3A8A",
-          }}
-        >
-          Voltar
-        </Button>
-        <Button
-          variant="contained"
-          sx={{
-            px: 5,
-            fontWeight: "bold",
-            textTransform: "none",
-            bgcolor: "#0D47A1",
-            "&:hover": { bgcolor: "#002171" },
-          }}
-        >
-          Gerar Relatório
-        </Button>
-      </Paper>
     </Container>
   );
+}
+
+// Para usar o useSearchParams no Next.js (App Router), precisamos envolver o componente em um Suspense
+export default function CriarRelatorioPage() {
+    return (
+        <Suspense fallback={
+            <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
+                <CircularProgress sx={{ color: "#1E3A8A" }} />
+            </Box>
+        }>
+            <CriarRelatorioContent />
+        </Suspense>
+    );
 }

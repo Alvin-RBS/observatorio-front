@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -17,68 +17,46 @@ import {
   Container
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
-
-// --- TIPAGEM DOS DADOS ---
-type UploadStatus = "concluido" | "pendente" | "processando" | "erro";
-
-interface UploadHistoryItem {
-  id: number;
-  fileName: string;
-  status: UploadStatus;
-  date: string;
-}
-
-// --- DADOS MOCKADOS (Para visualizar igual à imagem) ---
-const MOCK_DATA: UploadHistoryItem[] = [
-  { id: 1, fileName: "Jovens cumprindo medida socioeducativa", status: "concluido", date: "00:20" },
-  { id: 2, fileName: "Jovens cumprindo medida socioeducativa", status: "concluido", date: "00:20" },
-  { id: 3, fileName: "Jovens cumprindo medida socioeducativa", status: "pendente", date: "00:20" },
-  { id: 4, fileName: "Jovens cumprindo medida socioeducativa", status: "concluido", date: "00:20" },
-  { id: 5, fileName: "Jovens cumprindo medida socioeducativa", status: "processando", date: "00:20" },
-  { id: 6, fileName: "Jovens cumprindo medida socioeducativa", status: "erro", date: "00:20" },
-  { id: 7, fileName: "Jovens cumprindo medida socioeducativa", status: "concluido", date: "00:20" },
-];
-
-export default function HistoricoEnviosPage() {
+import { useRouter } from "next/navigation";
+import { MOCK_MEUS_ENVIOS, getStatusConfig, MeuEnvioItem } from "../mockMeusEnvios";
+export default function MeusEnviosPage() {
+  const router = useRouter(); 
   const [searchTerm, setSearchTerm] = useState("");
+  const [enviosList, setEnviosList] = useState<MeuEnvioItem[]>([]);
 
-  // Função para definir a cor do Chip baseado no status
-  const getStatusConfig = (status: UploadStatus) => {
-    switch (status) {
-      case "concluido":
-        return { label: "Concluído", color: "#55E398", textColor: "#3F3F3F" }; // Verde
-      case "pendente":
-        return { label: "Pendente", color: "#efec3e", textColor: "#3F3F3F" }; // Amarelo
-      case "processando":
-        return { label: "Processando", color: "#F1B35C", textColor: "#3F3F3F" }; // Laranja
-      case "erro":
-        return { label: "Erro", color: "#F15C5F", textColor: "#3F3F3F" }; // Vermelho
-      default:
-        return { label: status, color: "#E0E0E0", textColor: "#000" };
-    }
-  };
+  useEffect(() => {
+    setEnviosList([...MOCK_MEUS_ENVIOS]);
+  }, []);
 
-  // Filtragem simples pelo nome
-  const filteredData = MOCK_DATA.filter((item) =>
-    item.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredData = enviosList.filter((envio) =>
+    envio.arquivoNome.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleRowClick = (id: number) => {
+    router.push(`/meus-envios/${id}`);
+  };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Título da Página */}
-      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4, color: "#333" }}>
-        Meus envios
-      </Typography>
+      
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box>
+            <Typography variant="h4" fontWeight="bold" sx={{ color: "#333" }}>
+            Meus Envios
+            </Typography>
+            <Typography variant="body1" color="text.secondary" mt={0.5}>
+            Acompanhe o status e o histórico dos arquivos que você enviou ao sistema.
+            </Typography>
+        </Box>
+      </Box>
 
-      {/* Card Branco Principal */}
       <Paper elevation={4} sx={{ p: 4, borderRadius: 2, border: "1px solid #E5E7EB" }}>
-        
-        {/* Barra de Busca */}
+
         <Box sx={{ mb: 4 }}>
           <TextField
             fullWidth
             variant="outlined"
-            placeholder="Pesquisar por nome"
+            placeholder="Pesquisar por nome do arquivo..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -91,21 +69,26 @@ export default function HistoricoEnviosPage() {
             sx={{ 
                 maxWidth: "100%",
                 "& .MuiOutlinedInput-root": {
-                    borderRadius: 1,
-                    backgroundColor: "#fff"
+                    borderRadius: 2,
+                    backgroundColor: "#fff",
+                    transition: "all 0.3s ease", 
+                    "&.Mui-focused": {
+                        boxShadow: "0px 4px 14px rgba(0, 0, 0, 0.08)", 
+                        transform: "translateY(-1px)",
+                    }
                 }
             }}
           />
         </Box>
 
-        {/* Tabela */}
         <TableContainer>
-          <Table sx={{ minWidth: 650 }} aria-label="tabela de histórico">
+          <Table sx={{ minWidth: 650 }} aria-label="tabela de meus envios">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: "bold", fontSize: "1rem", color: "#374151" }}>Nome do arquivo</TableCell>
-                <TableCell align="left" sx={{ fontWeight: "bold", fontSize: "1rem", color: "#374151" }}>Status do envio</TableCell>
-                <TableCell align="center" sx={{ fontWeight: "bold", fontSize: "1rem", color: "#374151" }}>Data de envio</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Data / Hora</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Nome do Arquivo</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Tipo de Ação</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", color: "#374151" }}>Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -116,34 +99,36 @@ export default function HistoricoEnviosPage() {
                   return (
                     <TableRow
                       key={row.id}
-                      sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                      onClick={() => handleRowClick(row.id)}
+                      hover
+                      sx={{ 
+                        "&:last-child td, &:last-child th": { border: 0 },
+                        cursor: "pointer", 
+                        transition: "background-color 0.2s"
+                      }}
                     >
-                      <TableCell component="th" scope="row" sx={{ color: "#4B5563" }}>
-                        {row.fileName}
-                      </TableCell>
-                      
-                      <TableCell align="left">
+                      <TableCell sx={{ color: "#4B5563" }}>{row.dataHora}</TableCell>
+                      <TableCell sx={{ color: "#4B5563", fontWeight: 500 }}>{row.arquivoNome}</TableCell>
+                      <TableCell sx={{ color: "#4B5563" }}>{row.tipoAcao}</TableCell>
+                      <TableCell>
                         <Chip 
                             label={statusConfig.label} 
                             size="small"
                             sx={{ 
                                 bgcolor: statusConfig.color, 
                                 color: statusConfig.textColor,
-                                minWidth: 90,
-                                fontSize: "0.85rem"
+                                minWidth: 100,
+                                fontSize: "0.85rem",
+                                fontWeight: "bold"
                             }} 
                         />
-                      </TableCell>
-                      
-                      <TableCell align="center" sx={{ color: "#6B7280" }}>
-                        {row.date}
                       </TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
                     <Typography color="text.secondary">Nenhum envio encontrado.</Typography>
                   </TableCell>
                 </TableRow>
