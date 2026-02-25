@@ -297,9 +297,6 @@ function CriarRelatorioContent() {
 
             {/* BOTÕES DINÂMICOS OTIMIZADOS */}
             <Box display="flex" justifyContent="flex-end" gap={2}>
-              <Button variant="outlined" onClick={() => handleGerarRelatorio("CSV")} disabled={!!erroValidacao || loading} startIcon={<TableChartIcon />} sx={{ textTransform: "none", fontWeight: "bold", borderColor: "#10B981", color: "#10B981", "&:hover": { bgcolor: "#ECFDF5", borderColor: "#059669" } }}>
-                Exportar (CSV)
-              </Button>
               <Button variant="contained" onClick={() => handleGerarRelatorio("PDF")} disabled={!!erroValidacao || loading || !selectedIndicatorId} startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <PictureAsPdfIcon />} sx={{ textTransform: "none", fontWeight: "bold", bgcolor: "#1E3A8A", px: 4, "&:hover": { bgcolor: "#1E40AF" } }}>
                 {loading ? "A processar..." : `Gerar Relatório - ${currentIndicator?.label || ''}`}
               </Button>

@@ -35,18 +35,20 @@ export const StepConfiguration = ({ draft, onChangeConfig, indicatorId }: Props)
   // Estado local para busca nos checkboxes SECUNDÁRIOS
   const [subSearchTerm, setSubSearchTerm] = useState("");
 
-  // --- 1. LÓGICA DE ATRIBUTOS DISPONÍVEIS ---
   const availableDimensions = useMemo(() => {
     if (!indicator) return [];
 
-    const textAttrs = indicator.contextAttributes.filter(a => a.dataType === 'text');
+    // AGORA ACEITA TEXTO E NÚMERO (Traz 'idade' de volta!)
+    const validAttrs = indicator.contextAttributes.filter(a => a.dataType === 'text' || a.dataType === 'number');
+    
+    // Procura se tem município em algum lugar
     const hasMunicipio = [...indicator.calculationAttributes, ...indicator.contextAttributes].find(a => a.id === 'municipio');
 
-      if (hasMunicipio && !textAttrs.find(a => a.id === 'municipio')) {
-        return [hasMunicipio, ...textAttrs];
-      }
+    if (hasMunicipio && !validAttrs.find(a => a.id === 'municipio')) {
+      return [hasMunicipio, ...validAttrs];
+    }
     
-    return textAttrs;
+    return validAttrs;
   }, [indicator, chartType]);
 
   // --- 1.1 LÓGICA DE SUB-ATRIBUTOS (Exclui o que já foi selecionado no principal) ---
@@ -133,6 +135,11 @@ export const StepConfiguration = ({ draft, onChangeConfig, indicatorId }: Props)
 
   // A. GRÁFICOS DE LINHA / ÁREA
   if (chartType === 'line' || chartType === 'area') {
+
+    const validYears = getAttributeValues("ano").map(Number).sort();
+    const minYear = validYears[0] || 2018;
+    const maxYear = validYears[validYears.length - 1] || new Date().getFullYear();
+
     return (
       <Box display="flex" flexDirection="column" gap={3} >
         <Typography variant="body2" color="text.secondary">
@@ -147,6 +154,7 @@ export const StepConfiguration = ({ draft, onChangeConfig, indicatorId }: Props)
                 size="small"
                 value={draft.config.startYear || 2019}
                 onChange={(e) => onChangeConfig({ startYear: Number(e.target.value) })}
+                inputProps={{ min: minYear, max: maxYear }}
             />
             </Grid>
             <Grid size={{ xs: 6}} >
@@ -157,6 +165,7 @@ export const StepConfiguration = ({ draft, onChangeConfig, indicatorId }: Props)
                 size="small"
                 value={draft.config.endYear || 2025}
                 onChange={(e) => onChangeConfig({ endYear: Number(e.target.value) })}
+                inputProps={{ min: minYear, max: maxYear }}
             />
             </Grid>
         </Grid>
@@ -172,10 +181,12 @@ export const StepConfiguration = ({ draft, onChangeConfig, indicatorId }: Props)
                 label="Dividir por..."
                 onChange={(e) => handleAttributeChange(e.target.value)}
                 >
-                <MenuItem value=""><em>Nenhum (Linha única)</em></MenuItem>
-                {availableDimensions.map((attr) => (
-                    <MenuItem key={attr.id} value={attr.id}>{attr.label}</MenuItem>
-                ))}
+               <MenuItem value=""><em>Nenhum (Linha única)</em></MenuItem>
+                  {availableDimensions
+                      .filter((attr) => attr.id !== 'ano') 
+                      .map((attr) => (
+                      <MenuItem key={attr.id} value={attr.id}>{attr.label}</MenuItem>
+                  ))}
                 </Select>
             </FormControl>
             {draft.config.xAxisAttribute && 

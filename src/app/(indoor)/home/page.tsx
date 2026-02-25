@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { 
   Typography, 
@@ -11,20 +11,30 @@ import {
   Select, 
   MenuItem, 
   FormControl,
-  InputLabel
+  CircularProgress
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUploadOutlined";
 import AssessmentIcon from "@mui/icons-material/Assessment";
-import LocationOnIcon from "@mui/icons-material/LocationOn";
 import DescriptionIcon from "@mui/icons-material/Description";
 import SecurityIcon from "@mui/icons-material/Security"; 
 import LocalPoliceIcon from "@mui/icons-material/LocalPolice"; 
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 
 import { useRouter } from "next/navigation";
 import { useFile } from "@/context/FileContext"; 
 import { useDashboard, ChartConfig } from "@/context/DashboardContext";
 import { INDICATORS_DB } from "@/data/indicatorsConfig"; 
 import { getAttributeValues } from "@/data/domainValues";
+
+// --- IMPORTS DO SERVIÇO E ADAPTADORES ---
+import {
+  getAggregatedData,
+  transformToApexXYSeries,
+  transformToApexPieSeries,
+  transformToApexMatrixSeries,
+  transformToGeomapSeries,
+  DashboardRequestDTO
+} from "@/features/dashBoard/services/dashboardService";
 
 // --- IMPORTS DINÂMICOS DOS GRÁFICOS ---
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
@@ -42,15 +52,11 @@ const PernambucoMap = dynamic(
 
 // --- HELPERS DE GRÁFICOS ---
 const transformDataForMap = (chartData: ChartConfig): Record<string, number> => {
-    const mapData: Record<string, number> = {};
-    const categories = chartData.options?.xaxis?.categories || [];
-    const values = chartData.series?.[0]?.data || [];
-    categories.forEach((city: string | number, index: number) => {
-        if (typeof city === 'string' && values[index] !== undefined) {
-            mapData[city] = Number(values[index]);
-        }
-    });
-    return mapData;
+    // Se o backend já enviou no formato de dicionário { "Recife": 10 }, usamos direto:
+    if (chartData.series && !Array.isArray(chartData.series) && typeof chartData.series === 'object') {
+        return chartData.series as unknown as Record<string, number>;
+    }
+    return {};
 };
 
 const getApexType = (customType: string): any => {
@@ -65,25 +71,22 @@ export default function HomePage() {
   const { setUploadedFile } = useFile();
   const { getChartsByIndicator } = useDashboard();
 
-  // Estado para o Indicador Principal
-  const [highlightedIndicator, setHighlightedIndicator] = useState(
-    INDICATORS_DB?.[0]?.id || "1"
-  );
-
-  // Filtros dinâmicos selecionados
+  // Estados principais
+  const [highlightedIndicator, setHighlightedIndicator] = useState(INDICATORS_DB?.[0]?.id || "1");
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  
+  // Novos estados para gerenciar os dados reais dos gráficos na Home
+  const [loadedCharts, setLoadedCharts] = useState<ChartConfig[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Dados do indicador atual
   const currentIndicatorData = useMemo(() => 
     INDICATORS_DB?.find(i => i.id === highlightedIndicator), 
   [highlightedIndicator]);
 
-  // Gráficos reais do indicador (Pegamos apenas os 3 primeiros para a Home)
   const previewCharts = useMemo(() => 
     getChartsByIndicator(highlightedIndicator).slice(0, 3),
   [highlightedIndicator, getChartsByIndicator]);
 
-  // Mapeia as variáveis de contexto do indicador para montar a barra superior
   const dynamicFilterInputs = useMemo(() => {
     if (!currentIndicatorData) return [];
     
@@ -102,9 +105,7 @@ export default function HomePage() {
     setActiveFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  const handlePickFile = () => {
-    fileInputRef.current?.click();
-  };
+  const handlePickFile = () => fileInputRef.current?.click();
 
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -114,11 +115,101 @@ export default function HomePage() {
     }
   };
 
-  // Função central de roteamento para relatórios
   const handleGoToReport = (indicatorId: string) => {
     router.push(`/relatorios?indicatorId=${indicatorId}`);
   };
 
+  // ==========================================
+  // EFEITO: BUSCAR DADOS REAIS PARA OS GRÁFICOS DA HOME
+  // ==========================================
+  useEffect(() => {
+    const fetchPreviewData = async () => {
+      if (!previewCharts || previewCharts.length === 0) {
+        setLoadedCharts([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const updatedCharts = await Promise.all(
+          previewCharts.map(async (chartTemplate) => {
+            // 1. Interseção Inteligente de Filtros (Gráfico vs Global da Home)
+            const mergedFilters: Record<string, string> = { ...chartTemplate.chartFilters };
+
+            Object.keys(activeFilters).forEach((key) => {
+              const globalValue = activeFilters[key];
+              if (!globalValue || globalValue.trim() === "") return;
+
+              if (mergedFilters[key]) {
+                const chartVals = mergedFilters[key].split(",").map((v) => v.trim().toUpperCase());
+                const globalVals = globalValue.split(",").map((v) => v.trim().toUpperCase());
+                const intersection = chartVals.filter((v) => globalVals.includes(v));
+                mergedFilters[key] = intersection.length > 0 ? intersection.join(",") : "__NONE__";
+              } else {
+                mergedFilters[key] = globalValue;
+              }
+            });
+
+            // 2. Chama o Mock
+            const payload: DashboardRequestDTO = {
+              indicatorId: highlightedIndicator,
+              filters: mergedFilters,
+              groupBy: chartTemplate.groupBy || [],
+              metrics: chartTemplate.metrics || [],
+            };
+
+            const data = await getAggregatedData(payload);
+
+            // 3. Adapta os dados retornados para o formato do ApexCharts
+            let newSeries: any = [];
+            const newOptions = { ...chartTemplate.options };
+
+            const safeGroupBy = chartTemplate.groupBy || [];
+
+            if (chartTemplate.type === "line" || chartTemplate.type === "bar" || chartTemplate.type === "area" || chartTemplate.type === "bar-horizontal") {
+              const xAxis = safeGroupBy[0];
+              const seriesAttr = safeGroupBy[1];
+              const adapted = transformToApexXYSeries(data, xAxis, seriesAttr);
+              newSeries = adapted.series;
+              newOptions.xaxis = { ...newOptions.xaxis, categories: adapted.categories };
+            } else if (chartTemplate.type === "pie" || chartTemplate.type === "donut") {
+              const labelAttr = safeGroupBy[0];
+              const adapted = transformToApexPieSeries(data, labelAttr);
+              newSeries = adapted.series;
+              newOptions.labels = adapted.labels;
+            } else if (chartTemplate.type === "geomap") {
+              const locationAttr = safeGroupBy[0] || "municipio";
+              newSeries = transformToGeomapSeries(data, locationAttr);
+            } else if (chartTemplate.type === "heatmap") {
+              const xAxis = safeGroupBy[0];
+              const yAxis = safeGroupBy[1];
+              const adapted = transformToApexMatrixSeries(data, xAxis, yAxis);
+              newSeries = adapted.series;
+            }
+
+            return {
+              ...chartTemplate,
+              series: newSeries,
+              options: newOptions,
+            };
+          })
+        );
+
+        setLoadedCharts(updatedCharts);
+      } catch (error) {
+        console.error("Erro ao carregar preview dos gráficos", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPreviewData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightedIndicator, activeFilters]);
+
+  // ==========================================
+  // RENDERIZAÇÃO DA PÁGINA
+  // ==========================================
   return (
     <Box sx={{ pb: 4, pt: 2 }}>
       
@@ -185,12 +276,19 @@ export default function HomePage() {
 
       {/* 2. PRÉVIA DO DASHBOARD */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {previewCharts.map((chart) => {
+        {loadedCharts.map((chart) => {
             const mapDataForPreview = chart.type === 'geomap' ? transformDataForMap(chart) : {};
             const previewOptions = {
                 ...chart.options,
                 chart: { ...chart.options?.chart, toolbar: { show: false } }
             };
+
+            // Avalia se o mock retornou vazio devido a filtros excludentes
+            const isChartEmpty = 
+                !chart.series || 
+                (Array.isArray(chart.series) && chart.series.length === 0) || 
+                (Array.isArray(chart.series[0]?.data) && chart.series[0].data.length === 0) ||
+                (chart.type === 'geomap' && Object.keys(chart.series || {}).length === 0);
 
             return (
                 <Grid size={{ xs: 12, md: 4 }} key={chart.id}>
@@ -200,7 +298,16 @@ export default function HomePage() {
                         </Typography>
                         
                         <Box flexGrow={1} sx={{ position: "relative", minHeight: 0, mt: 1 }}>
-                            {chart.type === 'geomap' ? (
+                            {isLoading ? (
+                                <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <CircularProgress size={30} sx={{ color: '#9CA3AF' }} />
+                                </Box>
+                            ) : isChartEmpty ? (
+                                <Box sx={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", bgcolor: "#F9FAFB", border: "2px dashed #D1D5DB", borderRadius: 2 }}>
+                                    <SearchOffIcon sx={{ fontSize: 36, mb: 1, color: '#9CA3AF' }} />
+                                    <Typography variant="caption" color="text.secondary">Nenhum dado encontrado</Typography>
+                                </Box>
+                            ) : chart.type === 'geomap' ? (
                                 <Box sx={{ position: "absolute", inset: 0, borderRadius: 2, overflow: "hidden" }}>
                                     <PernambucoMap dataMap={mapDataForPreview} />
                                 </Box>
@@ -221,7 +328,7 @@ export default function HomePage() {
             );
         })}
 
-        {previewCharts.length === 0 && (
+        {previewCharts.length === 0 && !isLoading && (
             <Grid size={{ xs: 12 }}>
                 <Paper sx={{ p: 4, textAlign: "center", borderRadius: 3, border: "1px dashed #9CA3AF", bgcolor: "#F9FAFB", elevation: 0 }}>
                     <Typography color="text.secondary">Nenhum gráfico disponível para o panorama deste indicador.</Typography>
@@ -293,7 +400,7 @@ export default function HomePage() {
                     <Grid size={{ xs: 12, sm: 6 }}>
                         <Button 
                             variant="outlined" fullWidth 
-                            onClick={() => handleGoToReport("1")} // Substitua "1" pelo ID real do CVLI
+                            onClick={() => handleGoToReport("1")}
                             startIcon={<DescriptionIcon color="action" />} 
                             sx={{ justifyContent: "flex-start", py: 1.5, textTransform: 'none', color: '#4B5563', borderColor: '#E5E7EB', fontWeight: 500, "&:hover": { bgcolor: "#F9FAFB" } }}
                         >
@@ -303,7 +410,7 @@ export default function HomePage() {
                     <Grid size={{ xs: 12, sm: 6 }}>
                          <Button 
                             variant="outlined" fullWidth 
-                            onClick={() => handleGoToReport("2")} // Substitua "2" pelo ID real do Feminicídio
+                            onClick={() => handleGoToReport("2")}
                             startIcon={<SecurityIcon color="action" />} 
                             sx={{ justifyContent: "flex-start", py: 1.5, textTransform: 'none', color: '#4B5563', borderColor: '#E5E7EB', fontWeight: 500, "&:hover": { bgcolor: "#F9FAFB" } }}
                         >
@@ -313,7 +420,7 @@ export default function HomePage() {
                     <Grid size={{ xs: 12, sm: 6 }}>
                          <Button 
                             variant="outlined" fullWidth 
-                            onClick={() => handleGoToReport("3")} // Substitua "3" pelo ID real
+                            onClick={() => handleGoToReport("3")}
                             startIcon={<LocalPoliceIcon color="action" />} 
                             sx={{ justifyContent: "flex-start", py: 1.5, textTransform: 'none', color: '#4B5563', borderColor: '#E5E7EB', fontWeight: 500, "&:hover": { bgcolor: "#F9FAFB" } }}
                         >
@@ -323,7 +430,7 @@ export default function HomePage() {
                     <Grid size={{ xs: 12, sm: 6 }}>
                          <Button 
                             variant="outlined" fullWidth 
-                            onClick={() => handleGoToReport("4")} // Substitua "4" pelo ID real
+                            onClick={() => handleGoToReport("4")}
                             startIcon={<SecurityIcon color="action" />} 
                             sx={{ justifyContent: "flex-start", py: 1.5, textTransform: 'none', color: '#4B5563', borderColor: '#E5E7EB', fontWeight: 500, "&:hover": { bgcolor: "#F9FAFB" } }}
                         >
@@ -333,7 +440,7 @@ export default function HomePage() {
                      <Grid size={{ xs: 12, sm: 12 }}>
                          <Button 
                             variant="outlined" fullWidth 
-                            onClick={() => handleGoToReport("5")} // Substitua "5" pelo ID real
+                            onClick={() => handleGoToReport("5")}
                             startIcon={<DescriptionIcon color="action" />} 
                             sx={{ justifyContent: "flex-start", py: 1.5, textTransform: 'none', color: '#4B5563', borderColor: '#E5E7EB', fontWeight: 500, "&:hover": { bgcolor: "#F9FAFB" } }}
                         >

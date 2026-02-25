@@ -254,7 +254,7 @@ const isStepValid = () => {
                     Dados enviados com sucesso!
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 500, mb: 4 }}>
-                    O arquivo foi processado e os indicadores foram atualizados no sistema.
+                    O arquivo foi processado e o indicador foi atualizado no sistema.
                 </Typography>
                 
                 <Stack direction="row" spacing={2}>

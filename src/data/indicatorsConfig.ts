@@ -1,25 +1,28 @@
-// src/data/indicatorsConfig.ts
-
 export type IndicatorType = 'ABSOLUTE' | 'RATE';
+
 
 export type AttributeDataType = 'text' | 'number' | 'date';
 
+
 export interface IndicatorAttribute {
-  id: string;           
+  id: string;          
   label: string;        
-  dataType: AttributeDataType; 
+  dataType: AttributeDataType;
 }
+
 
 export interface IndicatorConfig {
   id: string;
   label: string;
   type: IndicatorType;
-  multiplier?: number; 
+  multiplier?: number;
   calculationAttributes: IndicatorAttribute[];
   contextAttributes: IndicatorAttribute[];
 }
 
+
 // --- ATRIBUTOS COMUNS ---
+
 
 const COMMON_ATTRS = {
   municipio: { id: 'municipio', label: 'Município', dataType: 'text' as AttributeDataType },
@@ -28,16 +31,18 @@ const COMMON_ATTRS = {
 };
 
 
+
+
 export const INDICATORS_DB: IndicatorConfig[] = [
   // EXEMPLO 1: CVLI (Taxa por 100k habitantes)
   {
-    id: "1",
+    id: "cvli",
     label: "Crimes Violentos Letais Intencionais (CVLI)",
     type: 'RATE',
     multiplier: 100000,
     calculationAttributes: [
-      COMMON_ATTRS.municipio, 
-      { id: 'total_vitimas', label: 'Total de Vítimas', dataType: 'number' } 
+      COMMON_ATTRS.municipio,
+      { id: 'total_vitimas', label: 'Total de Vítimas', dataType: 'number' }
     ],
     contextAttributes: [
       COMMON_ATTRS.data,
@@ -50,7 +55,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
 
   // EXEMPLO 2: Feminicídio (Taxa por 100k mulheres)
   {
-    id: "2",
+    id: "feminicidio",
     label: "Feminicídio",
     type: 'RATE',
     multiplier: 100000,
@@ -68,7 +73,7 @@ export const INDICATORS_DB: IndicatorConfig[] = [
 
   // EXEMPLO 3: Apreensão de Armas (Número Absoluto)
   {
-    id: "3",
+    id: "3", // Mantive o ID original da sua lista
     label: "Apreensão de Armas de Fogo",
     type: 'ABSOLUTE',
     calculationAttributes: [
@@ -82,37 +87,42 @@ export const INDICATORS_DB: IndicatorConfig[] = [
       { id: 'calibre', label: 'Calibre', dataType: 'text' }
     ]
   },
-  
-  // EXEMPLO 4: Roubo a Transeunte (Absoluto)
+
+  // ===============================
+  // NOVOS INDICADORES ADICIONADOS
+  // ===============================
+
+  // EXEMPLO 4: Mortes por Armas de Fogo (Número Absoluto)
   {
-    id: "4",
-    label: "Roubo a Transeunte",
+    id: "MORTES_ARMAS_FOGO",
+    label: "Mortes por Armas de Fogo",
     type: 'ABSOLUTE',
     calculationAttributes: [
-        COMMON_ATTRS.municipio,
-        { id: 'total_roubos', label: 'Total de Roubos', dataType: 'number' }
+      COMMON_ATTRS.municipio,
+      { id: 'total_mortes', label: 'Total de Mortes por Arma de Fogo', dataType: 'number' }
     ],
     contextAttributes: [
-        COMMON_ATTRS.data,
-        COMMON_ATTRS.ano,
-        { id: 'horario', label: 'Horário do Fato', dataType: 'text' },
-        { id: 'bairro', label: 'Bairro', dataType: 'text' }
+      COMMON_ATTRS.data, // Usando o COMMON para manter a compatibilidade com o calendário
+      { id: 'bairro', label: 'Bairro', dataType: 'text' },
+      { id: 'sexo', label: 'Sexo da Vítima', dataType: 'text' },
+      { id: 'faixa_etaria', label: 'Faixa Etária', dataType: 'text' }
     ]
   },
 
-   {
-    id: "5",
-    label: "Homicídios de 18 a 29 anos",
-    type: 'ABSOLUTE',
+  // EXEMPLO 5: Crimes contra a propriedade (Taxa por 100k habitantes)
+  {
+    id: "CRIMES_CONTRA_PROPRIEDADE",
+    label: "Crimes contra a propriedade (CVP)",
+    type: 'RATE',
+    multiplier: 100000,
     calculationAttributes: [
-      { id: 'total_ocorrencias', label: 'Total de Ocorrências', dataType: 'number' } 
+      COMMON_ATTRS.municipio,
+      { id: 'total_crimes_propriedade', label: 'Total de Crimes contra a Propriedade', dataType: 'number' },
+      { id: 'populacao', label: 'População', dataType: 'number' }
     ],
     contextAttributes: [
-      COMMON_ATTRS.data,
-      COMMON_ATTRS.ano,
-      { id: 'sexo', label: 'Sexo', dataType: 'text' },
-      { id: 'idade', label: 'Idade', dataType: 'number' },
-      { id: 'natureza_juridica', label: 'Natureza Jurídica', dataType: 'text' }
+      COMMON_ATTRS.ano, // Usando o COMMON para manter a compatibilidade com a linha do tempo
+      { id: 'tipo_crime', label: 'Tipo de Crime', dataType: 'text' }
     ]
   }
 ];
