@@ -33,13 +33,13 @@ export const ChartCreationModal = ({ open, onClose, onSave, indicatorId }: Props
   };
 
 
-const handleFinish = () => {
-    if (!draft.type) return;
 
+  const handleFinish = () => {
+    if (!draft.type) return;
 
     const generatedData = generateMockDataFromConfig(draft, indicatorId);
 
-// 2. MONTA O GROUP BY (Eixo X e Subdivisões)
+    // 2. MONTA O GROUP BY (Eixo X e Subdivisões)
     const groupByColumns: string[] = [];
 
     if (draft.type === 'line' || draft.type === 'area') {
@@ -62,16 +62,21 @@ const handleFinish = () => {
         }
     }
 
-
     // ---> NOVIDADE: SALVANDO AS OPÇÕES MARCADAS COMO FILTRO <---
     const chartSpecificFilters: Record<string, string> = {};
     
-    // 1. Filtro normal (Ex: Cidades, Natureza Jurídica)
+    // 1. Filtro Principal (Ex: Eixo X da Pizza, Barras ou a Subdivisão da Linha)
     if (draft.config.xAxisAttribute && draft.config.selectedValues && draft.config.selectedValues.length > 0) {
         chartSpecificFilters[draft.config.xAxisAttribute] = draft.config.selectedValues.join(",");
     }
 
-    // 2. Filtro de Anos para Gráficos de Linha e Área com VALIDAÇÃO
+    // ---> A CORREÇÃO ENTRA AQUI! <---
+    // 2. Filtro Secundário (Ex: Cidades marcadas no Eixo Y do Heatmap)
+    if (draft.config.secondaryAttribute && draft.config.secondaryValues && draft.config.secondaryValues.length > 0) {
+        chartSpecificFilters[draft.config.secondaryAttribute] = draft.config.secondaryValues.join(",");
+    }
+
+    // 3. Filtro de Anos para Gráficos de Linha e Área com VALIDAÇÃO
     if (draft.type === 'line' || draft.type === 'area') {
         const start = draft.config.startYear || 2019;
         const end = draft.config.endYear || 2025;
@@ -93,24 +98,26 @@ const handleFinish = () => {
         }
     }
 
-
     const indicator = getIndicatorConfig(indicatorId);
     const metricColumn = indicator?.calculationAttributes?.[0]?.id || "total";
-
 
     const finalChart: ChartConfig = {
         id: Date.now().toString(),
         title: draft.title || "Novo Gráfico",
         type: draft.type,
-        series: [],
-        options: generatedData.options,
+        
+        // Vai vazio! O useEffect da página encarrega de preencher usando o Mock
+        series: [], 
+        
+        // Pegamos do template SÓ o visual limpo, sem erros do TypeScript
+        options: generatedData.options, 
+        
         groupBy: groupByColumns,
         metrics: [metricColumn],
-       
-        // ---> PASSA O FILTRO PARA O CONTEXTO AQUI <---
+        
+        // ---> PASSA OS FILTROS CRUZADOS PARA O CONTEXTO AQUI <---
         chartFilters: chartSpecificFilters
     };
-
 
     onSave(finalChart);
     handleClose();
@@ -539,12 +546,22 @@ colors: [
     }
 
 
-  // 5. HEATMAP
+ // 5. HEATMAP
     if (type === 'heatmap') {
+        const xAxis = config.xAxisAttribute || 'ano';
+        const yAxis = config.secondaryAttribute || 'municipio';
+        
+        // CORREÇÃO 1: Construção Inteligente do Filtro para o Mock!
+        const heatmapFilters: Record<string, string> = {};
+        if (config.secondaryValues && config.secondaryValues.length > 0) {
+            heatmapFilters[yAxis] = config.secondaryValues.join(",");
+        }
+
+        // CORREÇÃO 2: A lista de Eixo Y local PRECISA refletir o que o usuário escolheu,
+        // senão o Apex desenha 185 linhas inúteis mesmo com o Mock retornando apenas 3 cidades.
         const rows = config.secondaryValues && config.secondaryValues.length > 0
             ? config.secondaryValues
             : ["Homicídio Doloso", "Latrocínio", "Lesão Corporal", "Feminicídio"];
-
 
         const heatmapSeries = rows.map(rowLabel => ({
             name: rowLabel,
@@ -554,12 +571,11 @@ colors: [
             }))
         }));
 
-
         // Ponto de quebra seguro entre o Card (menor) e o Zoom (maior)
         const BREAKPOINT = 650;
 
-
         return {
+            
             series: heatmapSeries,
             options: {
                 ...baseOptions,
@@ -568,10 +584,9 @@ colors: [
                     toolbar: { show: false },
                     type: 'heatmap',
                     // Redraw ao redimensionar garante que o formatter rode novamente
-               redrawOnParentResize: true
+                    redrawOnParentResize: true
                 },
-               
-             
+                
                 states: {
                     hover: {
                         filter: {
@@ -580,7 +595,6 @@ colors: [
                         }
                     },
                 },
-
 
                 grid: {
                     padding: { right: 10, left: 10, bottom: 20 }
@@ -591,19 +605,19 @@ colors: [
                         radius: 4,        
                         enableShades: false,
                         colorScale: {
-                                    ranges: [
-                                        { from: 0, to: 20, color: '#93C5FD', name: 'Muito Baixo' },
-                                        { from: 20.001, to: 40, color: '#3B82F6', name: 'Baixo' },      
-                                        { from: 40.001, to: 60, color: '#1D4ED8', name: 'Médio' },      
-                                        { from: 60.001, to: 80, color: '#1E3A8A', name: 'Alto' },      
-                                        { from: 80.001, to: 10000, color: '#122456', name: 'Crítico' }
-                                    ]
-                                }
+                            ranges: [
+                                { from: 0, to: 20, color: '#93C5FD', name: 'Muito Baixo' },
+                                { from: 20.001, to: 40, color: '#3B82F6', name: 'Baixo' },      
+                                { from: 40.001, to: 60, color: '#1D4ED8', name: 'Médio' },      
+                                { from: 60.001, to: 80, color: '#1E3A8A', name: 'Alto' },      
+                                { from: 80.001, to: 10000, color: '#122456', name: 'Crítico' }
+                            ]
+                        }
                     }
                 },
                 dataLabels: { enabled: false },
                 stroke: { width: 2, colors: ['#fff'] },
-               
+                
                 // --- EIXO X  ---
                 xaxis: {
                     type: 'category',
@@ -622,17 +636,16 @@ colors: [
                         }
                     }
                 },
-               
+                
                 // --- EIXO Y  ---
                 yaxis: {
                     labels: {
                         // maxWidth gigante para evitar que o Apex faça o corte por conta própria no zoom
                         maxWidth: 400,
                         style: { fontSize: '10px', fontFamily: 'Roboto, sans-serif', fontWeight: 500 },
-                       
+                        
                         formatter: (value: string, opts: any) => {
                             const width = opts?.w?.globals?.svgWidth || window.innerWidth || 0;
-
 
                             if (typeof value === 'string') {
                                 if (width > BREAKPOINT) {
@@ -647,7 +660,7 @@ colors: [
                         }
                     }
                 },
-               
+                
                 legend: {
                     show: true,
                     position: 'bottom',
@@ -658,8 +671,8 @@ colors: [
                     itemMargin: { horizontal: 5, vertical: 0 },
                     markers: { radius: 2, width: 10, height: 10 }
                 },
-               
-               tooltip: {
+                
+                tooltip: {
                     theme: 'light',
                     y: { formatter: (val: number) => `${val} ${measureLabel}` },
                     x: { show: true }
@@ -667,7 +680,6 @@ colors: [
             }
         };
     }
-
 
     // 6. Colunas/Barras
     if ((type === 'bar-horizontal' || type === 'bar') && config.secondaryAttribute && config.secondaryValues?.length) {
